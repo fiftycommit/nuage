@@ -163,6 +163,53 @@ class PortalTests(unittest.TestCase):
             download.assert_called_once()
             aria.assert_not_called()
 
+    def test_filekeeper_probe_hides_direct_link_and_worker_uses_fresh_link(self):
+        self.login()
+        url = 'https://filekeeper.net/abcdef123456'
+        body = b'7z\xbc\xaf\x27\x1c' + b'fixture-content'
+        item = {'name': 'fixture.7z', 'size': len(body), 'host': 'Filekeeper', 'url': url}
+        with patch.object(app.filekeeper, 'metadata', return_value=item), patch.object(
+                app.shutil, 'disk_usage', return_value=SimpleNamespace(free=100 * 1024**3)):
+            response = self.client.post('/api/probe', json={'urls': [url]})
+            self.assertTrue(response.json()['all_ready'])
+            self.assertNotIn('direct', response.json()['items'][0])
+            self.assertNotIn('url', response.json()['items'][0])
+            queued = self.client.post('/api/jobs', json={'urls': [url]})
+        self.assertEqual(queued.status_code, 200)
+        with tempfile.TemporaryDirectory() as temporary:
+            folder = Path(temporary)
+            direct = 'https://tunnel1.dlproxy.uk/fresh-fixture'
+            def transfer(command, *args):
+                self.assertEqual(command[-1], direct)
+                self.assertIn('--continue=true', command)
+                self.assertEqual(command[command.index('--out') + 1], item['name'])
+                (folder/item['name']).write_bytes(body)
+                return 0
+            with patch.object(app.filekeeper, 'resolve', return_value={**item, 'direct': direct}), patch.object(
+                    app, 'run_aria2', side_effect=transfer):
+                app.download_one(item, folder, queued.json()['id'])
+        progress = json.loads(app.fetch(queued.json()['id'])['progress'])
+        self.assertEqual(progress[item['name']]['completed'], len(body))
+
+    def test_filekeeper_changed_or_invalid_archive_never_completes(self):
+        item = {'name': 'fixture.7z', 'size': 12, 'host': 'Filekeeper',
+                'url': 'https://filekeeper.net/abcdef123456'}
+        with tempfile.TemporaryDirectory() as temporary:
+            folder = Path(temporary)
+            with patch.object(app.filekeeper, 'resolve', return_value={**item, 'size': 13}), patch.object(
+                    app, 'run_aria2') as aria, self.assertRaises(RuntimeError):
+                app.download_one(item, folder, 'f'*24)
+            aria.assert_not_called()
+            def bad_transfer(*args):
+                (folder/item['name']).write_bytes(b'x' * 12)
+                return 0
+            with patch.object(app.filekeeper, 'resolve', return_value={
+                    **item, 'direct': 'https://tunnel1.dlproxy.uk/fixture'}), patch.object(
+                    app, 'run_aria2', side_effect=bad_transfer), patch.object(
+                    app, 'update_item_progress') as progress, self.assertRaises(RuntimeError):
+                app.download_one(item, folder, 'f'*24)
+            progress.assert_not_called()
+
     def test_health_and_frontend_assets(self):
         self.assertEqual(self.client.get('/api/health').json()['status'], 'ok')
         self.assertEqual(self.client.get('/downloads').status_code, 200)

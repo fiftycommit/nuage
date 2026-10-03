@@ -28,6 +28,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 import rootz
+import filekeeper
 
 
 HERE = Path(__file__).resolve().parent
@@ -305,6 +306,9 @@ def provider(url: str) -> str:
     if host in ("rootz.so", "www.rootz.so"):
         rootz.share_url(url.strip())
         return "Rootz"
+    if host in ("filekeeper.net", "www.filekeeper.net"):
+        filekeeper.share_url(url.strip())
+        return "Filekeeper"
     if host in ("mediafire.com", "www.mediafire.com") or re.fullmatch(
         r"download\d+\.mediafire\.com", host
     ):
@@ -394,6 +398,10 @@ def probe_one(url: str) -> dict:
     if len(url) > 4000:
         raise ValueError("Lien trop long")
     host = provider(url)
+    if host == "Filekeeper":
+        item = filekeeper.metadata(url)
+        item["name"] = clean_name(item["name"])
+        return item
     if host == "Rootz":
         item = rootz.metadata(url)
         item["name"] = clean_name(item["name"])
@@ -637,7 +645,9 @@ def download_one(item: dict, destination: Path, job_id: str) -> None:
             with target.open("rb") as stream:
                 signature = stream.read(16)
             if not signature.lstrip().lower().startswith((b"<!doctype html", b"<html")):
-                if not name.lower().endswith(".rar") or signature.startswith(b"Rar!\x1a\x07"):
+                valid_rar = not name.lower().endswith(".rar") or signature.startswith(b"Rar!\x1a\x07")
+                valid_7z = not name.lower().endswith(".7z") or signature.startswith(b"7z\xbc\xaf\x27\x1c")
+                if valid_rar and valid_7z:
                     update_item_progress(job_id, name, target.stat().st_size,
                                          target.stat().st_size)
                     return
@@ -646,7 +656,14 @@ def download_one(item: dict, destination: Path, job_id: str) -> None:
         rootz.download(item, target, lambda current, total, speed:
                        update_item_progress(job_id, name, current, total, speed))
         return
-    if item["host"] == "AkiraBox":
+    if item["host"] == "Filekeeper":
+        resolved = filekeeper.resolve(url)
+        if clean_name(resolved["name"]) != name or resolved["size"] != item.get("size"):
+            raise RuntimeError("Le fichier Filekeeper a changé depuis sa vérification")
+        command = ["aria2c", "--continue=true", "--max-tries=8", "--retry-wait=5",
+                   "--split=4", "--max-connection-per-server=4", "--min-split-size=32M",
+                   "--dir", str(destination), "--out", name, resolved["direct"]]
+    elif item["host"] == "AkiraBox":
         url = resolve_akira(url)
         command = ["aria2c", "--continue=true", "--max-tries=8", "--retry-wait=5",
                    "--split=4", "--max-connection-per-server=4", "--min-split-size=32M",
@@ -678,6 +695,10 @@ def download_one(item: dict, destination: Path, job_id: str) -> None:
         raise RuntimeError(f"L'hébergeur a renvoyé une page au lieu du fichier : {name}")
     if isinstance(item.get("size"), int) and target.stat().st_size != item["size"]:
         raise RuntimeError(f"Taille incorrecte : {name}")
+    if name.lower().endswith(".7z") and not first.startswith(b"7z\xbc\xaf\x27\x1c"):
+        raise RuntimeError(f"Le fichier téléchargé n'est pas une archive 7z valide : {name}")
+    if name.lower().endswith(".rar") and not first.startswith(b"rar!\x1a\x07"):
+        raise RuntimeError(f"Le fichier téléchargé n'est pas une archive RAR valide : {name}")
     update_item_progress(job_id, name, target.stat().st_size, target.stat().st_size)
 
 

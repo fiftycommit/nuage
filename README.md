@@ -67,6 +67,7 @@ Le nom modifié dans la bibliothèque est un nom d'affichage : les chemins de st
 ### Hébergeurs
 
 - **MediaFire** : dépend du helper `mediafire-get` installé séparément sur le serveur. Le code de ce helper n'est pas inclus dans cette version ; voir son contrat ci-dessous.
+- **Filekeeper** : lien de fichier avec son identifiant, compte à rebours et bouton Free download suivis dans Chromium, puis lien direct temporaire utilisé par aria2 avec progression et reprise. La taille exacte est vérifiée ; les archives 7z sont contrôlées et disponibles comme fichiers simples. Les vérifications humaines et mots de passe du site doivent être traités sur Filekeeper.
 - **Rootz** : liens de partage `/d/…`, vérifiés puis téléchargés avec Chromium/Playwright par le bouton Download. Progression en octets et débit ; téléchargements séquentiels. La taille et la signature RAR sont vérifiées avant publication. Un téléchargement interrompu recommence depuis le début. Les liens protégés par mot de passe ou demandant une vérification humaine sont refusés.
 - **AkiraBox** : vérification du lien de partage et téléchargement via un lien direct signé encore valide. Lorsque l'hébergeur demande un CAPTCHA, l'utilisateur doit le compléter sur son site et fournir le lien direct.
 

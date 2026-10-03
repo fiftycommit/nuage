@@ -2,7 +2,7 @@
 set -eu
 cd "$(dirname "$0")/.."
 PYTHON_BIN=${PYTHON_BIN:-python3}
-"$PYTHON_BIN" -m compileall -q app.py rootz.py scripts tests
+"$PYTHON_BIN" -m compileall -q app.py rootz.py filekeeper.py scripts tests
 node --check file-tiles.js
 node --test tests/file-tiles.test.cjs
 "$PYTHON_BIN" -m unittest discover -s tests -p 'test_*.py' -v
