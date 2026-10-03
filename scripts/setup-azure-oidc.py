@@ -24,6 +24,15 @@ def az(*command):
     return json.loads(run('az', *command, '--output', 'json', '--only-show-errors'))
 
 run('gh', 'auth', 'status')
+oidc = json.loads(run('gh', 'api', f'repos/{args.repo}/actions/oidc/customization/sub'))
+if not oidc.get('use_default'):
+    raise SystemExit('Custom GitHub OIDC claims are not supported; no configuration was changed')
+# GitHub includes immutable owner/repository IDs for new repositories.
+# Read the actual prefix instead of assuming the legacy repo:owner/name format.
+prefix = oidc.get('sub_claim_prefix', '')
+if not re.fullmatch(r'repo:[A-Za-z0-9_.-]+(?:@[0-9]+)?/[A-Za-z0-9_.-]+(?:@[0-9]+)?', prefix):
+    raise SystemExit('GitHub did not return a supported OIDC subject prefix; no configuration was changed')
+subject = f'{prefix}:environment:production'
 account = az('account', 'show')
 vm = az('vm', 'show', '--resource-group', args.resource_group, '--name', args.vm)
 print(f'Configure GitHub OIDC for {args.repo}, VM {args.resource_group}/{args.vm}.')
@@ -39,7 +48,6 @@ identity = az('identity', 'create', '--resource-group', args.resource_group, '--
               '--location', vm['location'])
 credentials = az('identity', 'federated-credential', 'list', '--resource-group', args.resource_group,
                  '--identity-name', args.identity)
-subject = f'repo:{args.repo}:environment:production'
 existing = next((c for c in credentials if c['name'] == 'github-production'), None)
 if existing:
     if existing['subject'] != subject or existing['issuer'] != 'https://token.actions.githubusercontent.com':

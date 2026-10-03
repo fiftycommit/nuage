@@ -145,6 +145,8 @@ python3 scripts/setup-azure-oidc.py \
 
 Le script crée l'identité et sa fédération, attribue `Virtual Machine Contributor` au niveau de cette VM, limite l'environnement GitHub `production` à `main`, renseigne ses variables et active `NUAGE_AUTO_DEPLOY`. Il déclenche ensuite la CI. Les identifiants client/tenant/abonnement sont des paramètres, pas des secrets d'authentification.
 
+Le sujet de la fédération est lu depuis les paramètres OIDC du dépôt GitHub, y compris les identifiants immuables du propriétaire et du dépôt utilisés pour les nouveaux dépôts. Le script refuse une personnalisation des claims ou une fédération existante incompatible au lieu de la remplacer.
+
 Le workflow CD se déclenche uniquement après une CI réussie de `main` dans ce dépôt. Il récupère le **SHA exact validé**, prépare les dépendances hors du code actif, attend la fin des tâches pendant au plus 30 minutes, puis remplace le code. La vérification de `/api/health` exige ce SHA ; un échec restaure la version précédente. Les données et le fichier d'environnement restent à leur emplacement.
 
 Pour la toute première mise à jour, fais partir le déploiement lorsque les transferts sont au repos : l'ancienne version peut ne pas encore connaître le marqueur de maintenance. Les versions suivantes refusent temporairement de nouvelles tâches pendant la livraison.
