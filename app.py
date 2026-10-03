@@ -483,6 +483,26 @@ def get_job(job_id: str, request: Request) -> dict:
     return public_job(fetch(job_id))
 
 
+@app.delete("/api/jobs/{job_id}")
+def delete_job(job_id: str, request: Request) -> dict:
+    require_login(request, mutation=True)
+    if not re.fullmatch(r"[0-9a-f]{24}", job_id):
+        raise HTTPException(400, "Identifiant de tâche invalide")
+    # Workers claim queued jobs under this same lock before accessing files.
+    with db_lock, connect() as connection:
+        row = connection.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
+        if row is None:
+            raise HTTPException(404, "Tâche introuvable")
+        if row["state"] not in ("queued", "ready", "failed", "expired") or row["package_state"] == "building":
+            raise HTTPException(409, "Attends la fin du traitement avant de supprimer ce téléchargement")
+        try:
+            remove_job_files(job_id)
+        except OSError:
+            raise HTTPException(500, "Impossible d'effacer tous les fichiers ; réessaie la suppression") from None
+        connection.execute("DELETE FROM jobs WHERE id=?", (job_id,))
+    return {"id": job_id, "deleted": True}
+
+
 @app.post("/api/jobs/{job_id}/retry-extract")
 def retry_extract(job_id: str, payload: RetryArchive, request: Request) -> dict:
     require_login(request, mutation=True)
@@ -811,27 +831,46 @@ def build_package(row: dict) -> None:
         update(job_id, package_state="failed", package_message=str(exc)[:200])
 
 
+def claim_next_job(package: bool = False) -> dict | None:
+    with db_lock, connect() as connection:
+        condition = "state='ready' AND package_state='queued'" if package else "state='queued'"
+        order = "updated" if package else "created"
+        row = connection.execute(
+            f"SELECT * FROM jobs WHERE {condition} ORDER BY {order} LIMIT 1"
+        ).fetchone()
+        if row is None:
+            return None
+        field, value = ("package_state", "building") if package else ("state", "downloading")
+        connection.execute(f"UPDATE jobs SET {field}=?,updated=? WHERE id=?",
+                           (value, int(time.time()), row["id"]))
+        return {**dict(row), field: value}
+
+
 def package_worker() -> None:
     while True:
         try:
-            with worker_lock, connect() as connection:
-                row = connection.execute(
-                    "SELECT * FROM jobs WHERE package_state='queued' ORDER BY updated LIMIT 1"
-                ).fetchone()
+            with worker_lock:
+                row = claim_next_job(package=True)
                 if row:
-                    build_package(dict(row))
+                    build_package(row)
         except Exception:
             pass
         time.sleep(2)
 
 
-def expire_job(row: dict) -> None:
-    job_id = row["id"]
+def remove_job_files(job_id: str) -> None:
     if not re.fullmatch(r"[0-9a-f]{24}", job_id):
         raise ValueError("Identifiant de tâche invalide")
     for directory in (PRIVATE / job_id, PUBLIC / job_id):
-        if directory.exists():
+        if directory.is_symlink():
+            directory.unlink()
+        elif directory.exists():
             shutil.rmtree(directory)
+
+
+def expire_job(row: dict) -> None:
+    job_id = row["id"]
+    remove_job_files(job_id)
     items = json.loads(row["items"])
     retained_items = [
         {key: item.get(key) for key in ("name", "size", "host", "mime")}
@@ -867,12 +906,10 @@ def cleanup_worker() -> None:
 def worker() -> None:
     while True:
         try:
-            with worker_lock, connect() as connection:
-                row = connection.execute(
-                    "SELECT * FROM jobs WHERE state='queued' ORDER BY created LIMIT 1"
-                ).fetchone()
+            with worker_lock:
+                row = claim_next_job()
                 if row:
-                    process(dict(row))
+                    process(row)
         except Exception:
             pass  # Keep the worker alive; the next queued job can still run.
         time.sleep(2)

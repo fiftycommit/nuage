@@ -52,6 +52,7 @@ Les captures sont produites automatiquement par la CI à partir du véritable fr
 | Dossier complet | ZIP sans recompression, créé en arrière-plan avec progression |
 | Bibliothèque | Nom affiché modifiable, liens de téléchargement et tuiles repliables par fichier |
 | Conservation | Suppression automatique des résultats et du ZIP après 5 jours |
+| Suppression manuelle | Bouton avec confirmation pour effacer un lot en attente ou terminé, ses fichiers, ses archives et son ZIP ; attendre la fin des traitements actifs |
 | Accès | Mot de passe partagé, cookie de session signé ; contrôle de session aussi sur les fichiers |
 
 Le nom modifié dans la bibliothèque est un nom d'affichage : les chemins de stockage internes restent associés à l'identifiant de tâche. Le repli des tuiles est mémorisé dans le navigateur par tâche et chemin de fichier.

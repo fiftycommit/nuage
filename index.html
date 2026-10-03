@@ -81,6 +81,11 @@
     .pill.expired { background: #f0f1f4; color: #667085; }
     .job { background: #fff; border: 1px solid #e5eaf3; border-radius: 17px; padding: 18px 20px; margin: 10px 0; display: flex; gap: 14px; align-items: center; }
     .job-info { flex: 1; min-width: 0; }
+    .job-actions { display: flex; align-items: center; gap: 10px; }
+    .delete-job { background: #fff; border: 1px solid #f0c9c4; border-radius: 9px; padding: 8px 10px; color: #b44539; font-size: 12px; font-weight: 700; }
+    .delete-job:hover:not(:disabled) { background: #fff1ef; }
+    .delete-job:disabled { opacity: .5; cursor: not-allowed; }
+    @media (max-width: 560px) { .job-actions { flex-direction: column; align-items: flex-end; gap: 8px; } }
     .job strong { display: block; font-size: 14px; overflow-wrap: anywhere; }
     .job small { color: #8290a4; display: block; margin-top: 4px; }
     .pill { padding: 7px 11px; border-radius: 99px; font-size: 11px; font-weight: 800; background: #edf3ff; color: #3866c7; white-space: nowrap; }
@@ -177,6 +182,36 @@
       $('historyTitle').textContent = location.pathname.startsWith('/job/') ? 'Fichiers du dossier' : 'Mes liens de téléchargement';
     }
     const {createFileTile} = window.NuageFileTiles;
+    let deletingJob = false;
+    function deleteJobButton(job, selected) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'delete-job';
+      button.textContent = 'Supprimer';
+      button.setAttribute('aria-label', `Supprimer ${job.display_name}`);
+      button.disabled = !['queued', 'ready', 'failed', 'expired'].includes(job.state) || job.package?.state === 'building';
+      if (button.disabled) button.title = 'Disponible à la fin du traitement';
+      button.addEventListener('click', async () => {
+        if (!window.confirm(`Supprimer « ${job.display_name} » ?\n\nLes fichiers, les archives et le ZIP seront définitivement effacés du serveur pour toutes les personnes utilisant Nuage.`)) return;
+        button.disabled = true;
+        deletingJob = true;
+        try {
+          await api(`/api/jobs/${job.id}`, {method: 'DELETE'});
+          if (selected === job.id) {
+            location.assign('/downloads');
+          } else {
+            showMessage('Téléchargement supprimé et espace libéré.');
+            await loadJobs(true);
+          }
+        } catch (error) {
+          showMessage(error.message, true);
+          button.disabled = false;
+        } finally {
+          deletingJob = false;
+        }
+      });
+      return button;
+    }
     function extractionProgressCard(job) {
       const card = document.createElement('div');
       card.className = 'progress-card';
@@ -269,6 +304,7 @@
       return card;
     }
     async function loadJobs(force = false) {
+      if (deletingJob && !force) return;
       if (!force && document.activeElement?.closest?.('.retry, .rename')) return;
       try {
         const selected = location.pathname.startsWith('/job/') ? location.pathname.split('/')[2] : null;
@@ -318,7 +354,11 @@
           const pill = document.createElement('span');
           pill.className = 'pill ' + job.state;
           pill.textContent = labels[job.state] || job.state;
-          row.append(icon, info, pill);
+          const jobActions = document.createElement('div');
+          jobActions.className = 'job-actions';
+          const remove = deleteJobButton(job, selected);
+          jobActions.append(pill, remove);
+          row.append(icon, info, jobActions);
           box.append(row);
           if (['queued', 'downloading', 'extracting', 'publishing'].includes(job.state) ||
               (job.state === 'failed' && Object.keys(job.progress || {}).length)) {

@@ -157,3 +157,47 @@ test('extraction has its own percentage and handles unknown and failed progress'
   const failed = render({state:'failed', extraction:{percent:42}});
   assert.equal(failed.children[0].children[0].textContent, 'Décompression interrompue');
 });
+
+function deletionSetup(confirmed = true) {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  const source = html.slice(html.indexOf('let deletingJob = false;'), html.indexOf('function extractionProgressCard(job)'));
+  const {context} = setup();
+  const calls = [];
+  const sandbox = {document: context.document, window:{confirm: message => {calls.push(['confirm',message]); return confirmed;}},
+    api: async (...args) => {calls.push(['api',...args]);},
+    showMessage: (...args) => {calls.push(['message',...args]);},
+    loadJobs: async force => {calls.push(['reload',force]);},
+    location:{assign: path => {calls.push(['redirect',path]);}}};
+  vm.createContext(sandbox);
+  vm.runInContext(source, sandbox);
+  return {sandbox,calls,job:{id:'demo',display_name:'Mon dossier',state:'ready',package:{state:'none'}}};
+}
+
+test('delete button confirms permanent removal then refreshes the library', async () => {
+  const {sandbox,calls,job} = deletionSetup();
+  const button = sandbox.deleteJobButton(job, null);
+  assert.equal(button.getAttribute('aria-label'), 'Supprimer Mon dossier');
+  await button.click();
+  assert.match(calls[0][1], /définitivement effacés/);
+  assert.equal(calls[1][1], '/api/jobs/demo');
+  assert.equal(calls[1][2].method, 'DELETE');
+  assert.ok(calls.some(call => call[0] === 'reload' && call[1] === true));
+});
+
+test('delete cancellation makes no request and deleting a folder page returns to the library', async () => {
+  const cancelled = deletionSetup(false);
+  await cancelled.sandbox.deleteJobButton(cancelled.job, null).click();
+  assert.equal(cancelled.calls.length, 1);
+  const selected = deletionSetup();
+  await selected.sandbox.deleteJobButton(selected.job, selected.job.id).click();
+  assert.ok(selected.calls.some(call => call[0] === 'redirect' && call[1] === '/downloads'));
+});
+
+test('delete is disabled during transfers, extraction and ZIP creation', () => {
+  const {sandbox,job} = deletionSetup();
+  for (const state of ['downloading','extracting','publishing']) {
+    assert.equal(sandbox.deleteJobButton({...job,state},null).disabled, true);
+  }
+  assert.equal(sandbox.deleteJobButton({...job,package:{state:'building'}},null).disabled, true);
+  assert.equal(sandbox.deleteJobButton({...job,state:'queued'},null).disabled, false);
+});

@@ -35,6 +35,80 @@ class PortalTests(unittest.TestCase):
     def login(self):
         return self.client.post('/api/login', json={'password': 'test-only-password'})
 
+    def deletion_fixture(self, state='ready', package_state='ready'):
+        job_id = 'c'*24
+        now = int(time.time())
+        with app.connect() as connection:
+            connection.execute('INSERT INTO jobs(id,created,updated,state,mode,items,package_state) VALUES(?,?,?,?,?,?,?)',
+                               (job_id, now, now, state, 'rar', '[]', package_state))
+        for root in (app.PRIVATE, app.PUBLIC):
+            directory = root/job_id
+            directory.mkdir(parents=True, exist_ok=True)
+            (directory/'fixture.bin').write_bytes(b'fixture')
+        (app.PUBLIC/job_id/f'download-{job_id}.zip').write_bytes(b'zip-fixture')
+        return job_id
+
+    def test_delete_removes_job_archives_files_and_zip_only_for_this_job(self):
+        job_id = self.deletion_fixture()
+        other = app.PUBLIC/('d'*24)
+        other.mkdir(exist_ok=True)
+        (other/'keep.bin').write_bytes(b'keep')
+        self.login()
+        self.assertEqual(self.client.delete(f'/api/jobs/{job_id}').json(), {'id': job_id, 'deleted': True})
+        self.assertFalse((app.PRIVATE/job_id).exists())
+        self.assertFalse((app.PUBLIC/job_id).exists())
+        self.assertTrue((other/'keep.bin').exists())
+        self.assertEqual(self.client.get(f'/api/jobs/{job_id}').status_code, 404)
+        self.assertEqual(self.client.delete(f'/api/jobs/{job_id}').status_code, 404)
+
+    def test_delete_requires_login_same_origin_and_no_deployment(self):
+        job_id = self.deletion_fixture()
+        url = f'/api/jobs/{job_id}'
+        self.assertEqual(self.client.delete(url).status_code, 401)
+        self.login()
+        self.assertEqual(self.client.delete(url, headers={'origin':'https://evil.test'}).status_code, 403)
+        self.assertEqual(self.client.delete('/api/jobs/not-a-valid-id').status_code, 400)
+        (app.ROOT/'.deploying').touch()
+        self.assertEqual(self.client.delete(url).status_code, 503)
+        self.assertTrue((app.PUBLIC/job_id).exists())
+
+    def test_delete_queued_job_prevents_worker_from_starting_it(self):
+        job_id = self.deletion_fixture(state='queued', package_state='none')
+        self.login()
+        self.assertEqual(self.client.delete(f'/api/jobs/{job_id}').status_code, 200)
+        self.assertIsNone(app.claim_next_job())
+
+    def test_delete_refuses_running_jobs_and_claimed_zip(self):
+        job_id = self.deletion_fixture(state='queued', package_state='none')
+        self.login()
+        self.assertEqual(app.claim_next_job()['state'], 'downloading')
+        for state in ('downloading', 'extracting', 'publishing'):
+            app.update(job_id, state=state)
+            self.assertEqual(self.client.delete(f'/api/jobs/{job_id}').status_code, 409)
+        app.update(job_id, state='ready', package_state='queued')
+        self.assertEqual(app.claim_next_job(package=True)['package_state'], 'building')
+        self.assertEqual(self.client.delete(f'/api/jobs/{job_id}').status_code, 409)
+        self.assertTrue((app.PUBLIC/job_id).exists())
+
+    def test_delete_failed_cleanup_keeps_job_for_retry(self):
+        job_id = self.deletion_fixture(state='failed', package_state='failed')
+        self.login()
+        with patch.object(app.shutil, 'rmtree', side_effect=OSError('fixture disk error')):
+            self.assertEqual(self.client.delete(f'/api/jobs/{job_id}').status_code, 500)
+        self.assertEqual(app.fetch(job_id)['state'], 'failed')
+
+    def test_delete_unlinks_symlink_without_removing_its_target(self):
+        job_id = self.deletion_fixture(state='expired', package_state='expired')
+        app.shutil.rmtree(app.PRIVATE/job_id)
+        external = app.ROOT/'external-fixture'
+        external.mkdir(exist_ok=True)
+        (external/'keep.bin').write_bytes(b'keep')
+        (app.PRIVATE/job_id).symlink_to(external, target_is_directory=True)
+        self.login()
+        self.assertEqual(self.client.delete(f'/api/jobs/{job_id}').status_code, 200)
+        self.assertTrue((external/'keep.bin').exists())
+        self.assertFalse((app.PRIVATE/job_id).is_symlink())
+
     def test_private_data_requires_authentication(self):
         for path in ['/api/storage', '/api/jobs', '/api/auth/file']:
             self.assertEqual(self.client.get(path).status_code, 401)
