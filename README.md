@@ -67,7 +67,10 @@ Le nom modifié dans la bibliothèque est un nom d'affichage : les chemins de st
 ### Hébergeurs
 
 - **MediaFire** : dépend du helper `mediafire-get` installé séparément sur le serveur. Le code de ce helper n'est pas inclus dans cette version ; voir son contrat ci-dessous.
+- **Rootz** : liens de partage `/d/…`, vérifiés puis téléchargés avec Chromium/Playwright par le bouton Download. Progression en octets et débit ; téléchargements séquentiels. La taille et la signature RAR sont vérifiées avant publication. Un téléchargement interrompu recommence depuis le début. Les liens protégés par mot de passe ou demandant une vérification humaine sont refusés.
 - **AkiraBox** : vérification du lien de partage et téléchargement via un lien direct signé encore valide. Lorsque l'hébergeur demande un CAPTCHA, l'utilisateur doit le compléter sur son site et fournir le lien direct.
+
+Le déploiement Azure installe la version de Chromium correspondant à Playwright dans chaque virtualenv et vérifie son lancement avant de remplacer le service. Les bibliothèques système Chromium doivent être présentes sur la VM (`playwright install-deps chromium`).
 
 Les autres hébergeurs ne sont pas pris en charge actuellement. Un lien temporaire peut expirer avant sa prise en charge dans la file.
 
@@ -78,6 +81,7 @@ Prérequis : **Python 3.12+**, Node.js 24 pour les tests frontend, `aria2c` et `
 ```sh
 python3 -m venv .venv
 .venv/bin/pip install -r requirements-dev.txt
+.venv/bin/playwright install --with-deps chromium --only-shell
 .venv/bin/python scripts/init-env.py
 .venv/bin/uvicorn app:app --env-file .env --host 127.0.0.1 --port 8765
 ```

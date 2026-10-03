@@ -27,6 +27,7 @@ from pathlib import Path, PurePosixPath
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
+import rootz
 
 
 HERE = Path(__file__).resolve().parent
@@ -301,6 +302,9 @@ def provider(url: str) -> str:
         raise ValueError("Utilise un lien HTTPS valide")
     if host in ("akirabox.com", "www.akirabox.com", "akirabox.to", "www.akirabox.to"):
         return "AkiraBox"
+    if host in ("rootz.so", "www.rootz.so"):
+        rootz.share_url(url.strip())
+        return "Rootz"
     if host in ("mediafire.com", "www.mediafire.com") or re.fullmatch(
         r"download\d+\.mediafire\.com", host
     ):
@@ -390,6 +394,10 @@ def probe_one(url: str) -> dict:
     if len(url) > 4000:
         raise ValueError("Lien trop long")
     host = provider(url)
+    if host == "Rootz":
+        item = rootz.metadata(url)
+        item["name"] = clean_name(item["name"])
+        return item
     return akira_metadata(url) if host == "AkiraBox" else mediafire_metadata(url)
 
 
@@ -634,6 +642,10 @@ def download_one(item: dict, destination: Path, job_id: str) -> None:
                                          target.stat().st_size)
                     return
     url = item["url"]
+    if item["host"] == "Rootz":
+        rootz.download(item, target, lambda current, total, speed:
+                       update_item_progress(job_id, name, current, total, speed))
+        return
     if item["host"] == "AkiraBox":
         url = resolve_akira(url)
         command = ["aria2c", "--continue=true", "--max-tries=8", "--retry-wait=5",

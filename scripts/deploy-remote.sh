@@ -64,6 +64,17 @@ curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
 tar -xzf "$archive" -C "$stage_dir" --strip-components=1
 python3 -m venv "$venv_dir"
 "$venv_dir/bin/pip" install --disable-pip-version-check -q -r "$stage_dir/requirements.txt" -r "$stage_dir/requirements-dev.txt"
+PLAYWRIGHT_BROWSERS_PATH="$venv_dir/share/browsers" "$venv_dir/bin/playwright" install chromium --only-shell
+# Verify Chromium before stopping or replacing the running service.
+PLAYWRIGHT_BROWSERS_PATH="$venv_dir/share/browsers" "$venv_dir/bin/python" - <<'PY'
+import asyncio
+from playwright.async_api import async_playwright
+async def check():
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        await browser.close()
+asyncio.run(check())
+PY
 (cd "$stage_dir" && "$venv_dir/bin/python" -m unittest discover -s tests -p 'test_*.py' -q)
 ln -s "$venv_dir" "$stage_dir/.venv"
 printf '%s\n' "$NUAGE_REVISION" > "$stage_dir/REVISION"

@@ -146,6 +146,21 @@ class PortalTests(unittest.TestCase):
             self.assertEqual(response.status_code, 503)
             probe.assert_not_called()
 
+    def test_rootz_probe_queue_and_worker_dispatch(self):
+        self.login()
+        url = 'https://www.rootz.so/d/private-fixture'
+        item = {'name': 'fixture.rar', 'size': 1024, 'host': 'Rootz', 'url': url}
+        with patch.object(app.rootz, 'metadata', return_value=item):
+            response = self.client.post('/api/probe', json={'urls': [url]})
+            self.assertTrue(response.json()['all_ready'])
+            self.assertNotIn('url', response.json()['items'][0])
+            queued = self.client.post('/api/jobs', json={'urls': [url]})
+        self.assertEqual(queued.status_code, 200)
+        with patch.object(app.rootz, 'download') as download, patch.object(app, 'run_aria2') as aria:
+            app.download_one(item, app.PRIVATE, queued.json()['id'])
+            download.assert_called_once()
+            aria.assert_not_called()
+
     def test_health_and_frontend_assets(self):
         self.assertEqual(self.client.get('/api/health').json()['status'], 'ok')
         self.assertEqual(self.client.get('/downloads').status_code, 200)
