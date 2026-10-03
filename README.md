@@ -67,9 +67,11 @@ Le nom modifié dans la bibliothèque est un nom d'affichage : les chemins de st
 ### Hébergeurs
 
 - **MediaFire** : dépend du helper `mediafire-get` installé séparément sur le serveur. Le code de ce helper n'est pas inclus dans cette version ; voir son contrat ci-dessous.
-- **Filekeeper** : lien de fichier avec son identifiant, compte à rebours et bouton Free download suivis dans Chromium, puis lien direct temporaire utilisé par aria2 avec progression et reprise. La taille exacte est vérifiée ; les archives 7z sont contrôlées et disponibles comme fichiers simples. Les vérifications humaines et mots de passe du site doivent être traités sur Filekeeper.
+- **Filekeeper** : lien de fichier avec son identifiant, compte à rebours et bouton Free download suivis avec `puppeteer-real-browser` et Chromium, puis lien direct temporaire utilisé par aria2 avec progression et reprise. La taille exacte est vérifiée ; les archives 7z sont contrôlées et disponibles comme fichiers simples. Les vérifications humaines et mots de passe du site doivent être traités sur Filekeeper.
 - **Rootz** : liens de partage `/d/…`, vérifiés puis téléchargés avec Chromium/Playwright par le bouton Download. Progression en octets et débit ; téléchargements séquentiels. La taille et la signature RAR sont vérifiées avant publication. Un téléchargement interrompu recommence depuis le début. Les liens protégés par mot de passe ou demandant une vérification humaine sont refusés.
 - **AkiraBox** : vérification du lien de partage et téléchargement via un lien direct signé encore valide. Lorsque l'hébergeur demande un CAPTCHA, l'utilisateur doit le compléter sur son site et fournir le lien direct.
+
+Filekeeper utilise `puppeteer-real-browser` 1.4.4 : le navigateur intercepte les en-têtes du fichier et annule immédiatement la réponse ; aria2 prend ensuite le relais. Si le premier clic ne soumet rien, le lien de secours de la page est utilisé. Node.js et Xvfb sont nécessaires sur la VM.
 
 Le déploiement Azure installe la version de Chromium correspondant à Playwright dans chaque virtualenv et vérifie son lancement avant de remplacer le service. Les bibliothèques système Chromium doivent être présentes sur la VM (`playwright install-deps chromium`).
 
@@ -77,12 +79,13 @@ Les autres hébergeurs ne sont pas pris en charge actuellement. Un lien temporai
 
 ## Démarrer en local
 
-Prérequis : **Python 3.12+**, Node.js 24 pour les tests frontend, `aria2c` et `unrar` pour les transferts et l'extraction. Nuage écoute sur `127.0.0.1` ; un proxy HTTPS sert l'installation accessible sur Internet.
+Prérequis : **Python 3.12+**, Node.js 18+ pour Filekeeper (24 en CI) et Xvfb sous Linux, `aria2c` et `unrar` pour les transferts et l'extraction. Nuage écoute sur `127.0.0.1` ; un proxy HTTPS sert l'installation accessible sur Internet.
 
 ```sh
 python3 -m venv .venv
 .venv/bin/pip install -r requirements-dev.txt
-.venv/bin/playwright install --with-deps chromium --only-shell
+npm ci --ignore-scripts
+.venv/bin/playwright install --with-deps chromium
 .venv/bin/python scripts/init-env.py
 .venv/bin/uvicorn app:app --env-file .env --host 127.0.0.1 --port 8765
 ```

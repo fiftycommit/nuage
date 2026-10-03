@@ -2,13 +2,18 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import os
+from pathlib import Path
 import re
+import signal
+import tempfile
 import threading
 import urllib.error
 import urllib.parse
 import urllib.request
 
-from playwright.async_api import Error as BrowserError, async_playwright
+from playwright.async_api import async_playwright
 
 import rootz  # Shares the deployed Playwright browser cache configuration.
 
@@ -60,36 +65,51 @@ def direct_info(url: str) -> dict:
 
 
 async def browser_link(url: str) -> tuple[str, str]:
+    # Use the full, versioned Chromium installed alongside Playwright for Rootz.
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        chrome = p.chromium.executable_path
+    url = share_url(url)
+    helper = Path(__file__).resolve().parent / 'scripts' / 'filekeeper-browser.cjs'
+    profile = tempfile.TemporaryDirectory(prefix='nuage-filekeeper-')
+    process = None
+    try:
+        process = await asyncio.create_subprocess_exec(
+            'node', str(helper), stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            env={**os.environ, 'NUAGE_CHROME_PATH': chrome,
+                 'NUAGE_BROWSER_PROFILE': profile.name}, start_new_session=True)
+        stdout, _ = await process.communicate(json.dumps({'url': url}).encode())
+        # The library can write startup diagnostics before our final JSON line.
+        data = json.loads(stdout.decode().strip().splitlines()[-1])
+        if process.returncode or 'error' in data:
+            raise ValueError(data.get('error', 'Navigateur Filekeeper indisponible'))
+        return data['name'], check_direct(data['direct'])
+    except OSError:
+        raise ValueError('Navigateur Filekeeper indisponible') from None
+    except (IndexError, KeyError, json.JSONDecodeError):
+        raise ValueError('Réponse du navigateur Filekeeper invalide') from None
+    finally:
+        # Chrome launcher creates detached process groups; cancellation must reap
+        # those too, but only processes carrying this request's unique profile.
+        if process is not None:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            await process.wait()
+        reap_browser_profile(profile.name)
+        profile.cleanup()
+
+
+def reap_browser_profile(profile: str):
+    for entry in Path('/proc').glob('[0-9]*/cmdline'):
         try:
-            # Only obtain the destination: Chromium cancels the attachment immediately.
-            context = await browser.new_context(accept_downloads=False)
-            page = await context.new_page()
-            response = await page.goto(share_url(url), wait_until='domcontentloaded', timeout=15000)
-            if response is None or response.status != 200:
-                raise ValueError('Fichier Filekeeper indisponible')
-            filename = page.locator('#dl-filename')
-            if not await filename.count():
-                raise ValueError('Fichier Filekeeper introuvable ou vérification humaine requise')
-            name = (await filename.inner_text()).strip()
-            if not name or '/' in name or '\\' in name or any(ord(char) < 32 for char in name):
-                raise ValueError('Nom de fichier Filekeeper invalide')
-            countdown = page.locator('#download-countdown')
-            if not await countdown.count():
-                raise ValueError('Parcours de téléchargement Filekeeper non reconnu')
-            if (await countdown.get_attribute('data-has-password') == 'true'
-                    or await countdown.get_attribute('data-has-captcha') == 'true'):
-                raise ValueError('Termine la vérification ou le mot de passe sur Filekeeper')
-            async with page.expect_download(timeout=15000) as event:
-                # Waiting for the real button honours the site's countdown.
-                await page.locator('#download-button').click(timeout=12000)
-            download = await event.value
-            direct = check_direct(download.url)
-            await download.cancel()
-            return name, direct
-        finally:
-            await browser.close()
+            args = entry.read_bytes().split(b'\0')
+            if any(arg == f'--user-data-dir={profile}'.encode()
+                   or arg.startswith(f'--database={profile}/'.encode()) for arg in args):
+                os.kill(int(entry.parent.name), signal.SIGKILL)
+        except (OSError, ValueError):
+            pass
 
 
 def resolve(url: str) -> dict:
@@ -97,11 +117,11 @@ def resolve(url: str) -> dict:
     if not _slots.acquire(timeout=10):
         raise ValueError('Vérification Filekeeper occupée ; réessaie dans quelques secondes')
     try:
-        name, direct = asyncio.run(browser_link(url))
+        name, direct = asyncio.run(asyncio.wait_for(browser_link(url), timeout=45))
         return {'name': name, 'host': 'Filekeeper', 'url': url,
                 'note': 'Lien Filekeeper vérifié', **direct_info(direct)}
-    except BrowserError:
-        raise ValueError('Filekeeper inaccessible ou vérification humaine requise sur son site') from None
+    except asyncio.TimeoutError:
+        raise ValueError('Filekeeper n’a pas répondu à temps ; réessaie la vérification') from None
     finally:
         _slots.release()
 

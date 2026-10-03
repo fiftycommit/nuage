@@ -1,5 +1,6 @@
 """Filekeeper QA uses local fixtures; private source links never enter the repository."""
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import time
 import threading
 import unittest
 from unittest.mock import patch
@@ -11,6 +12,8 @@ class FixtureHandler(BaseHTTPRequestHandler):
     protected = False
     missing = False
     requests = 0
+    swallow = False
+    slow = 0
 
     def log_message(self, *args):
         pass
@@ -34,10 +37,12 @@ class FixtureHandler(BaseHTTPRequestHandler):
             content = ('''<h1 id="dl-filename">fixture.7z</h1>
 <div id="download-countdown" data-has-password="%s" data-has-captcha="false"></div>
 <script>setTimeout(()=>{let b=document.createElement('button');b.id='download-button';
-b.textContent='Free download';b.onclick=()=>{let f=document.createElement('form');
+b.textContent='Free download';const submit=()=>{let f=document.createElement('form');
 f.method='POST';f.action='/file';document.body.append(f);f.submit()};
+b.onclick=%s ? ()=>{} : submit; let a=document.createElement('a');a.id='download-link';
+a.href='#';a.textContent='click here';a.onclick=e=>{e.preventDefault();submit()};document.body.append(a);
 document.getElementById('download-countdown').append(b)},100)</script>'''
-                       % ('true' if self.protected else 'false')).encode()
+                       % ('true' if self.protected else 'false', 'true' if self.swallow else 'false')).encode()
         self.send_response(200)
         self.send_header('Content-Type', 'text/html')
         self.send_header('Content-Length', str(len(content)))
@@ -46,6 +51,7 @@ document.getElementById('download-countdown').append(b)},100)</script>'''
 
     def do_POST(self):
         type(self).requests += 1
+        time.sleep(self.slow)
         self.send_response(302)
         self.send_header('Location', '/attachment')
         self.end_headers()
@@ -68,6 +74,8 @@ class FilekeeperTests(unittest.TestCase):
         FixtureHandler.protected = False
         FixtureHandler.missing = False
         FixtureHandler.requests = 0
+        FixtureHandler.swallow = False
+        FixtureHandler.slow = 0
 
     def test_share_and_direct_allowlists(self):
         self.assertEqual(filekeeper.share_url('https://www.filekeeper.net/abcdef123456/'),
@@ -93,6 +101,21 @@ class FilekeeperTests(unittest.TestCase):
         self.assertEqual(name, 'fixture.7z')
         self.assertEqual(direct, self.url.rsplit('/', 1)[0] + '/attachment')
         self.assertEqual(FixtureHandler.requests, 1)
+
+    def test_browser_uses_fallback_when_first_click_is_swallowed(self):
+        FixtureHandler.swallow = True
+        self.test_real_browser_waits_for_button_submits_form_and_resolves_attachment()
+
+    def test_browser_does_not_resubmit_a_slow_real_post(self):
+        FixtureHandler.slow = 3
+        self.test_real_browser_waits_for_button_submits_form_and_resolves_attachment()
+
+    def test_timeout_message_does_not_claim_a_human_challenge(self):
+        import asyncio
+        from unittest.mock import AsyncMock
+        with patch.object(filekeeper, 'browser_link', new=AsyncMock(side_effect=asyncio.TimeoutError)):
+            with self.assertRaisesRegex(ValueError, 'répondu à temps'):
+                filekeeper.resolve('https://filekeeper.net/abcdef123456')
 
     def test_browser_refuses_missing_and_protected_files_before_submission(self):
         import asyncio

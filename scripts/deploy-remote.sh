@@ -25,6 +25,9 @@ test ! -e "$marker"
 command -v aria2c >/dev/null
 command -v unrar >/dev/null
 command -v curl >/dev/null
+command -v node >/dev/null
+command -v npm >/dev/null
+command -v Xvfb >/dev/null
 # Existing helper is a VM prerequisite and is preserved by deployment.
 test -x /usr/local/bin/mediafire-get
 mkdir "$lock_dir"
@@ -62,10 +65,11 @@ archive="$stage_dir/source.tar.gz"
 curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
   "https://codeload.github.com/$NUAGE_REPOSITORY/tar.gz/$NUAGE_REVISION" -o "$archive"
 tar -xzf "$archive" -C "$stage_dir" --strip-components=1
+(cd "$stage_dir" && npm ci --ignore-scripts --omit=dev --no-audit --no-fund)
 python3 -m venv "$venv_dir"
 "$venv_dir/bin/pip" install --disable-pip-version-check -q -r "$stage_dir/requirements.txt" -r "$stage_dir/requirements-dev.txt"
 export PLAYWRIGHT_BROWSERS_PATH="$venv_dir/share/browsers"
-"$venv_dir/bin/playwright" install chromium --only-shell
+"$venv_dir/bin/playwright" install chromium
 # Verify Chromium before stopping or replacing the running service.
 "$venv_dir/bin/python" - <<'PY'
 import asyncio

@@ -1,0 +1,7 @@
+{
+  "name": "nuage-browser-resolver",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Filekeeper browser link resolver for Nuage",
+  "dependencies": {"puppeteer-real-browser": "1.4.4"}
+}

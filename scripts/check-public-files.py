@@ -10,7 +10,7 @@ if result.returncode == 0:
     files = [root/name for name in result.stdout.splitlines()]
 else:
     files = [p for p in root.rglob('*') if p.is_file() and not any(
-        part in {'.venv', '__pycache__', '.git', 'data', '.pytest_cache'} for part in p.relative_to(root).parts)]
+        part in {'.venv', '__pycache__', '.git', 'data', '.pytest_cache', 'node_modules'} for part in p.relative_to(root).parts)]
 patterns = [re.compile(rb'gh[pousr]_[A-Za-z0-9]{20,}'),
             re.compile(rb'github_pat_[A-Za-z0-9_]{30,}'),
             re.compile(rb'-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----')]
