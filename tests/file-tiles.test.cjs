@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const {createFileTile} = require('../file-tiles.js');
+const {createFileTile, createJobTile} = require('../file-tiles.js');
 
 class FakeElement {
   constructor(tagName) {
@@ -55,60 +55,64 @@ function setup() {
 const job = {id: 'abc123'};
 const file = {name: 'dossier/fichier.bin', size: 1234, url: '/files/abc123/fichier.bin'};
 
-test('file card is open by default and exposes an accessible minus control', () => {
-  const {context} = setup();
+test('file cards keep their actions and no longer have individual toggles', async () => {
+  const {context, values} = setup();
+  values.set('nuage.file-tile.abc123.dossier%2Ffichier.bin', 'collapsed');
   const tile = createFileTile(job, file, context);
-  const toggle = tile.querySelector('.tile-toggle');
-  const body = tile.querySelector('.file-tile-body');
-  const download = tile.querySelector('.file-download');
-
-  assert.equal(toggle.textContent, '−');
-  assert.equal(toggle.tagName, 'BUTTON');
-  assert.equal(toggle.getAttribute('aria-expanded'), 'true');
-  assert.equal(toggle.getAttribute('aria-controls'), body.id);
-  assert.equal(toggle.getAttribute('aria-label'), 'Réduire dossier/fichier.bin');
-  assert.equal(body.hidden, false);
-  assert.equal(download.href, file.url);
-  assert.equal(tile.querySelector('.file-tile-size').textContent, '1234 octets');
+  assert.equal(tile.querySelector('.tile-toggle'), null);
+  assert.equal(tile.querySelector('.file-tile-body').hidden, false);
+  assert.equal(tile.querySelector('.file-download').href, file.url);
+  assert.equal(tile.querySelector('.file-download').download, 'fichier.bin');
+  await tile.querySelector('.file-copy').click();
+  assert.equal(context.copied, 'https://nuage.example/files/abc123/fichier.bin');
 });
 
-test('toggle collapses and expands the card, updates ARIA, and persists per file', () => {
-  const {context, values} = setup();
-  const tile = createFileTile(job, file, context);
-  const toggle = tile.querySelector('.tile-toggle');
-  const body = tile.querySelector('.file-tile-body');
+function jobTileSetup(expandedJobs = new Set(), id = 'abc123') {
+  const {context} = setup();
+  const header = context.document.createElement('div');
+  const tile = createJobTile({id,display_name:'Mon téléchargement'}, header, {...context,expandedJobs});
+  const body = tile.querySelector('.job-tile-body');
+  for (const name of ['progress-card', 'retry', 'folder-actions', 'bundle-note', 'filelist']) {
+    const child = context.document.createElement('div');
+    child.className = name;
+    body.append(child);
+  }
+  return {tile,header,body,toggle:tile.querySelector('.tile-toggle'),expandedJobs};
+}
 
-  toggle.click();
+test('download tile starts closed and encloses all related content', () => {
+  const {tile,body,toggle} = jobTileSetup();
   assert.equal(body.hidden, true);
+  assert.equal(toggle.tagName, 'BUTTON');
   assert.equal(toggle.textContent, '+');
   assert.equal(toggle.getAttribute('aria-expanded'), 'false');
-  assert.equal(toggle.getAttribute('aria-label'), 'Déplier dossier/fichier.bin');
-  assert.equal(values.get('nuage.file-tile.abc123.dossier%2Ffichier.bin'), 'collapsed');
-
-  const restored = createFileTile(job, file, context);
-  assert.equal(restored.querySelector('.file-tile-body').hidden, true);
-  assert.equal(restored.querySelector('.tile-toggle').textContent, '+');
-
-  restored.querySelector('.tile-toggle').click();
-  assert.equal(restored.querySelector('.file-tile-body').hidden, false);
-  assert.equal(restored.querySelector('.tile-toggle').textContent, '−');
-  assert.equal(values.get('nuage.file-tile.abc123.dossier%2Ffichier.bin'), 'expanded');
+  assert.equal(toggle.getAttribute('aria-controls'), body.id);
+  for (const name of ['progress-card','retry','folder-actions','bundle-note','filelist']) {
+    assert.equal(tile.querySelector('.' + name), body.querySelector('.' + name));
+  }
 });
 
-test('different files have independent state and retain download and copy actions', async () => {
-  const {context, values} = setup();
-  const first = createFileTile(job, file, context);
-  const second = createFileTile(job, {...file, name: 'autre.bin'}, context);
-  first.querySelector('.tile-toggle').click();
+test('download toggle hides the entire body and retains its state during polling only', () => {
+  const first = jobTileSetup();
+  first.toggle.click();
+  assert.equal(first.body.hidden, false);
+  assert.equal(first.toggle.textContent, '−');
+  assert.equal(first.toggle.getAttribute('aria-expanded'), 'true');
+  const refreshed = jobTileSetup(first.expandedJobs);
+  assert.equal(refreshed.body.hidden, false);
+  assert.equal(jobTileSetup(first.expandedJobs, 'other').body.hidden, true);
+  assert.equal(jobTileSetup().body.hidden, true);
+  refreshed.toggle.click();
+  assert.equal(refreshed.body.hidden, true);
+  assert.equal(refreshed.toggle.getAttribute('aria-expanded'), 'false');
+});
 
-  assert.equal(first.querySelector('.file-tile-body').hidden, true);
-  assert.equal(second.querySelector('.file-tile-body').hidden, false);
-  assert.equal(values.get('nuage.file-tile.abc123.dossier%2Ffichier.bin'), 'collapsed');
-  assert.equal(values.has('nuage.file-tile.abc123.autre.bin'), false);
-  assert.equal(first.querySelector('.file-download').download, 'fichier.bin');
-  await first.querySelector('.file-copy').click();
-  assert.equal(context.copied, 'https://nuage.example/files/abc123/fichier.bin');
-  assert.equal(first.querySelector('.file-copy').textContent, 'Lien copié ✓');
+test('clicking the header toggles the download while action buttons leave it alone', () => {
+  const {header,body} = jobTileSetup();
+  header.listeners.click({target:{closest: () => null}});
+  assert.equal(body.hidden, false);
+  header.listeners.click({target:{closest: () => ({})}});
+  assert.equal(body.hidden, false);
 });
 
 test('toggle styling has no decorative border, fill, shadow, or circular shape', () => {
@@ -128,8 +132,10 @@ test('page loads the reusable tile component and its inline script parses', () =
   const inlineScripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)]
     .map(match => match[1]);
   assert.match(html, /<script src="\/assets\/file-tiles\.js"><\/script>/);
-  assert.match(html, /const \{createFileTile\} = window\.NuageFileTiles/);
+  assert.match(html, /const \{createFileTile, createJobTile\} = window\.NuageFileTiles/);
   assert.match(html, /for \(const file of visible\) files\.append\(createFileTile/);
+  assert.match(html, /\.job-tile-body\[hidden\]\s*\{\s*display:\s*none/);
+  assert.doesNotMatch(html, /box\.append\((?:progressCard|form|actions|note|packaging|error|files)/);
   assert.ok(inlineScripts.length > 0);
   assert.doesNotThrow(() => new Function(inlineScripts.at(-1)));
 

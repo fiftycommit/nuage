@@ -42,10 +42,12 @@ output.mkdir(parents=True, exist_ok=True)
 with tempfile.TemporaryDirectory(prefix='nuage-preview-') as tmp:
     preview = Path(tmp)
     shutil.copyfile(ROOT/'file-tiles.js', preview/'file-tiles.js')
-    for name, library, width, height in [('add', False, 1440, 1200), ('downloads', True, 1440, 1600), ('mobile', True, 390, 2100)]:
+    for name, library, width, height in [('add', False, 1440, 1200), ('downloads', True, 1440, 1600), ('downloads-expanded', True, 1440, 1600), ('mobile', True, 390, 1000)]:
         html = base.replace('<script src="/assets/file-tiles.js"></script>', mock+'<script src="file-tiles.js"></script>')
         html = html.replace("const libraryView = location.pathname === '/downloads' || location.pathname.startsWith('/job/');", f'const libraryView = {str(library).lower()};')
         html = html.replace('<div class="eyebrow">Tes fichiers, sans attendre</div>', '<div class="eyebrow">Démonstration · données fictives</div>')
+        if name == 'downloads-expanded':
+            html = html.replace('const expandedJobs = new Set();', 'const expandedJobs = new Set(' + json.dumps([ready['id'], downloading['id'], extracting['id']]) + ');')
         page = preview/f'{name}.html'
         page.write_text(html)
         subprocess.run([args.chrome, '--headless', '--disable-gpu', '--no-sandbox', '--disable-breakpad', '--no-first-run',

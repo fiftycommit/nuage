@@ -80,6 +80,8 @@
     .storage-card.low .storage-track span { background: #e29a35; }
     .pill.expired { background: #f0f1f4; color: #667085; }
     .job { background: #fff; border: 1px solid #e5eaf3; border-radius: 17px; padding: 18px 20px; margin: 10px 0; display: flex; gap: 14px; align-items: center; }
+    .job-tile-body[hidden] { display: none; }
+    .job { cursor: pointer; }
     .job-info { flex: 1; min-width: 0; }
     .job-actions { display: flex; align-items: center; gap: 10px; }
     .delete-job { background: #fff; border: 1px solid #f0c9c4; border-radius: 9px; padding: 8px 10px; color: #b44539; font-size: 12px; font-weight: 700; }
@@ -181,7 +183,8 @@
       $('heroDescription').textContent = 'Retrouve les téléchargements, suis leur progression et partage les fichiers prêts.';
       $('historyTitle').textContent = location.pathname.startsWith('/job/') ? 'Fichiers du dossier' : 'Mes liens de téléchargement';
     }
-    const {createFileTile} = window.NuageFileTiles;
+    const {createFileTile, createJobTile} = window.NuageFileTiles;
+    const expandedJobs = new Set();
     let deletingJob = false;
     function deleteJobButton(job, selected) {
       const button = document.createElement('button');
@@ -359,10 +362,12 @@
           const remove = deleteJobButton(job, selected);
           jobActions.append(pill, remove);
           row.append(icon, info, jobActions);
-          box.append(row);
+          const tile = createJobTile(job, row, {expandedJobs});
+          const contents = tile.querySelector('.job-tile-body');
+          box.append(tile);
           if (['queued', 'downloading', 'extracting', 'publishing'].includes(job.state) ||
               (job.state === 'failed' && Object.keys(job.progress || {}).length)) {
-            box.append(progressCard(job));
+            contents.append(progressCard(job));
           }
           if (job.state === 'failed' && job.mode === 'rar') {
             const form = document.createElement('form');
@@ -395,7 +400,7 @@
                 button.disabled = false;
               }
             });
-            box.append(form);
+            contents.append(form);
           }
           if (job.state === 'ready') {
             const actions = document.createElement('div');
@@ -475,11 +480,11 @@
               }
             });
             actions.append(rename);
-            box.append(actions);
+            contents.append(actions);
             const note = document.createElement('small');
             note.className = 'bundle-note';
             note.textContent = `Télécharger le ZIP demande environ ${fmt(bundle.total || job.files.reduce((sum, file) => sum + file.size, 0))} libres sur ton appareil et consomme du trafic sortant Azure.`;
-            box.append(note);
+            contents.append(note);
             if (bundle.state === 'building' || bundle.state === 'queued') {
               const packaging = document.createElement('div');
               packaging.className = 'progress-card';
@@ -493,12 +498,12 @@
               fill.style.width = percent + '%';
               track.append(fill);
               packaging.append(label, track);
-              box.append(packaging);
+              contents.append(packaging);
             } else if (bundle.state === 'failed') {
               const error = document.createElement('small');
               error.className = 'bundle-note';
               error.textContent = `ZIP non créé : ${bundle.message}`;
-              box.append(error);
+              contents.append(error);
             }
             const files = document.createElement('div');
             files.className = 'filelist';
@@ -514,7 +519,7 @@
               more.textContent = `Voir les ${job.files.length} fichiers →`;
               files.append(more);
             }
-            box.append(files);
+            contents.append(files);
           }
         }
       } catch (error) {

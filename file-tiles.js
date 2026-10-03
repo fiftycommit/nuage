@@ -5,16 +5,10 @@
 })(typeof globalThis === 'object' ? globalThis : this, function () {
   function createFileTile(job, file, context = {}) {
     const doc = context.document || document;
-    const store = context.localStorage || localStorage;
     const page = context.location || location;
     const format = context.formatSize || (bytes => String(bytes));
     const onError = context.onError || (() => {});
     const clipboard = context.clipboard || navigator.clipboard;
-    const stableFileId = encodeURIComponent(file.name);
-    const storageKey = `nuage.file-tile.${job.id}.${stableFileId}`;
-    let collapsed = false;
-    try { collapsed = store.getItem(storageKey) === 'collapsed'; } catch (_) {}
-
     const tile = doc.createElement('article');
     tile.className = 'file-tile';
     const head = doc.createElement('div');
@@ -35,19 +29,8 @@
     download.download = file.name.split('/').pop();
     download.textContent = '↓ Télécharger';
 
-    const bodyId = `file-details-${job.id}-${stableFileId}`;
-    const toggle = doc.createElement('button');
-    toggle.type = 'button';
-    toggle.className = 'tile-toggle';
-    toggle.textContent = collapsed ? '+' : '−';
-    toggle.setAttribute('aria-expanded', String(!collapsed));
-    toggle.setAttribute('aria-controls', bodyId);
-    toggle.setAttribute('aria-label', `${collapsed ? 'Déplier' : 'Réduire'} ${file.name}`);
-
     const body = doc.createElement('div');
-    body.id = bodyId;
     body.className = 'file-tile-body';
-    body.hidden = collapsed;
     const label = doc.createElement('span');
     label.className = 'file-tile-link-label';
     label.textContent = 'Lien direct';
@@ -68,17 +51,41 @@
     });
     body.append(label, url, copy);
 
-    toggle.addEventListener('click', () => {
-      collapsed = !collapsed;
-      body.hidden = collapsed;
-      toggle.textContent = collapsed ? '+' : '−';
-      toggle.setAttribute('aria-expanded', String(!collapsed));
-      toggle.setAttribute('aria-label', `${collapsed ? 'Déplier' : 'Réduire'} ${file.name}`);
-      try { store.setItem(storageKey, collapsed ? 'collapsed' : 'expanded'); } catch (_) {}
-    });
-    head.append(info, download, toggle);
+    head.append(info, download);
     tile.append(head, body);
     return tile;
   }
-  return {createFileTile};
+  function createJobTile(job, header, context = {}) {
+    const doc = context.document || document;
+    const expanded = context.expandedJobs || new Set();
+    const tile = doc.createElement('article');
+    tile.className = 'job-tile';
+    const body = doc.createElement('div');
+    body.className = 'job-tile-body';
+    body.id = `job-details-${job.id}`;
+    const toggle = doc.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'tile-toggle';
+    toggle.setAttribute('aria-controls', body.id);
+    function sync() {
+      const open = expanded.has(job.id);
+      body.hidden = !open;
+      toggle.textContent = open ? '−' : '+';
+      toggle.setAttribute('aria-expanded', String(open));
+      toggle.setAttribute('aria-label', `${open ? 'Réduire' : 'Déplier'} ${job.display_name}`);
+    }
+    toggle.addEventListener('click', () => {
+      if (expanded.has(job.id)) expanded.delete(job.id);
+      else expanded.add(job.id);
+      sync();
+    });
+    header.addEventListener('click', event => {
+      if (!event.target.closest('button, a, input')) toggle.click();
+    });
+    header.append(toggle);
+    sync();
+    tile.append(header, body);
+    return tile;
+  }
+  return {createFileTile, createJobTile};
 });

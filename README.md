@@ -33,6 +33,13 @@ Les captures sont produites automatiquement par la CI à partir du véritable fr
 ![Bibliothèque Nuage et progression](https://raw.githubusercontent.com/fiftycommit/nuage/screenshots/docs/screenshots/downloads.png)
 
 <details>
+<summary>Voir un téléchargement déplié</summary>
+
+![Téléchargements Nuage dépliés](https://raw.githubusercontent.com/fiftycommit/nuage/screenshots/docs/screenshots/downloads-expanded.png)
+
+</details>
+
+<details>
 <summary>Voir la version mobile</summary>
 
 <img src="https://raw.githubusercontent.com/fiftycommit/nuage/screenshots/docs/screenshots/mobile.png" width="390" alt="Nuage sur mobile : stockage, fichiers et progression">
@@ -50,12 +57,12 @@ Les captures sont produites automatiquement par la CI à partir du véritable fr
 | Progression | Débit courant, téléchargé/total et pourcentage restant par fichier |
 | Décompression RAR | Barre distincte avec le pourcentage réel fourni par unrar et le pourcentage restant ; 100 % seulement après réussite |
 | Dossier complet | ZIP sans recompression, créé en arrière-plan avec progression |
-| Bibliothèque | Nom affiché modifiable, liens de téléchargement et tuiles repliables par fichier |
+| Bibliothèque | Nom affiché modifiable, liens de téléchargement et tuiles repliables par téléchargement, fermées par défaut |
 | Conservation | Suppression automatique des résultats et du ZIP après 5 jours |
 | Suppression manuelle | Bouton avec confirmation pour effacer un lot en attente ou terminé, ses fichiers, ses archives et son ZIP ; attendre la fin des traitements actifs |
 | Accès | Mot de passe partagé, cookie de session signé ; contrôle de session aussi sur les fichiers |
 
-Le nom modifié dans la bibliothèque est un nom d'affichage : les chemins de stockage internes restent associés à l'identifiant de tâche. Le repli des tuiles est mémorisé dans le navigateur par tâche et chemin de fichier.
+Le nom modifié dans la bibliothèque est un nom d'affichage : les chemins de stockage internes restent associés à l'identifiant de tâche. Chaque tuile regroupe les actions, la progression et tous les fichiers du téléchargement. Le repli masque entièrement ce contenu. Les tuiles sont fermées à l’ouverture de la page ; un dépliage reste conservé pendant les mises à jour automatiques de cette page.
 
 ### Hébergeurs
 
