@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f6f8fc">
+  <title>Nuage — Mes transferts</title>
+  <style>
+    :root { font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #17243b; background: #f6f8fc; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: radial-gradient(circle at 82% 0%, #e4edff 0, transparent 36rem), #f6f8fc; }
+    button, textarea, input { font: inherit; }
+    button { cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: .52; }
+    a { color: #2858d8; }
+    :focus-visible { outline: 3px solid #f1ab43; outline-offset: 3px; }
+    .shell { max-width: 1120px; margin: auto; padding: 28px 24px 90px; }
+    header { display: flex; justify-content: space-between; align-items: center; gap: 18px; margin-bottom: 56px; }
+    .brand { display: inline-flex; gap: 11px; align-items: center; text-decoration: none; color: #17243b; font-size: 23px; font-weight: 840; letter-spacing: -.06em; }
+    .brandmark { width: 36px; height: 36px; border-radius: 13px; display: grid; place-items: center; color: white; background: linear-gradient(135deg, #2769ff, #9c69ff); box-shadow: 0 7px 16px #507ce638; }
+    .ghost { border: 1px solid #dce3f0; background: #fff; border-radius: 12px; padding: 10px 15px; color: #40516c; font-size: 14px; font-weight: 650; }
+    .head-actions { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+    .head-actions a { text-decoration: none; }
+    .head-actions a.current { border-color: #5d83ef; color: #245bd8; background: #edf3ff; }
+    .hero { max-width: 760px; margin-bottom: 34px; }
+    .eyebrow { text-transform: uppercase; font-size: 11px; letter-spacing: .16em; font-weight: 800; color: #6179a7; }
+    h1 { font-size: clamp(36px, 6vw, 62px); line-height: 1.05; letter-spacing: -.065em; margin: 12px 0 15px; }
+    .hero p { color: #68778f; font-size: clamp(16px, 2vw, 19px); line-height: 1.55; margin: 0; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(270px, 1fr); gap: 24px; align-items: start; }
+    .card { background: #fff; border: 1px solid #e5eaf3; border-radius: 24px; box-shadow: 0 14px 45px #243b6b0b; }
+    .maincard { padding: 30px; }
+    .sidecard { padding: 24px; }
+    .steps { display: flex; gap: 13px; margin-bottom: 30px; }
+    .step { display: flex; align-items: center; gap: 8px; color: #8b98ab; font-size: 13px; font-weight: 700; }
+    .step span { width: 25px; height: 25px; border-radius: 50%; background: #eaf0ff; color: #5d79bd; display: grid; place-items: center; }
+    .step.active { color: #2559d8; }
+    .step.active span { background: #3068f4; color: white; }
+    .step + .step::before { content: ''; width: 24px; height: 1px; background: #dce4ef; margin-right: 4px; }
+    h2 { font-size: 23px; letter-spacing: -.04em; margin: 0 0 7px; }
+    .muted { color: #718099; line-height: 1.5; }
+    .hint { font-size: 14px; color: #76839b; margin: 0 0 20px; }
+    .segmented { display: flex; gap: 10px; margin: 22px 0; }
+    .mode { flex: 1; display: flex; gap: 12px; align-items: center; text-align: left; padding: 15px; border: 1.5px solid #e2e8f2; border-radius: 16px; background: #fff; color: #34435e; }
+    .mode strong { display: block; font-size: 14px; }
+    .mode small { display: block; font-size: 12px; color: #8290a4; margin-top: 3px; }
+    .mode.selected { border-color: #4977f1; background: #f3f7ff; box-shadow: inset 0 0 0 1px #4977f1; }
+    .icon { font-size: 22px; }
+    label { display: block; font-size: 14px; font-weight: 750; margin-bottom: 9px; }
+    textarea, .field { width: 100%; border: 1.5px solid #dce4ef; border-radius: 15px; background: #fcfdff; padding: 15px; color: #1d2a40; }
+    textarea { height: 180px; line-height: 1.6; resize: vertical; font-size: 14px; }
+    .field { height: 50px; }
+    textarea:focus, .field:focus { border-color: #6c93f7; outline: 3px solid #dce8ff; }
+    .fieldline { margin-top: 18px; }
+    .actions { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-top: 22px; }
+    .primary { background: #2d62ec; color: white; border: 0; border-radius: 13px; padding: 14px 20px; font-size: 14px; font-weight: 800; box-shadow: 0 7px 16px #3268ed35; }
+    .primary:hover:not(:disabled) { background: #1b50da; }
+    .secondary { background: #f1f5fc; color: #3662c4; border: 0; border-radius: 13px; padding: 13px 16px; font-size: 14px; font-weight: 750; }
+    .smallnote { font-size: 12px; color: #8592a7; }
+    .status { margin-top: 18px; padding: 13px 15px; border-radius: 13px; background: #eef5ff; color: #2b5589; font-size: 14px; line-height: 1.5; }
+    .status.error { background: #fff0ef; color: #ad3a3a; }
+    .status[hidden], [hidden] { display: none !important; }
+    .result { border: 1px solid #e5eaf3; border-radius: 13px; padding: 12px 14px; display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+    .result .name { min-width: 0; flex: 1; overflow-wrap: anywhere; font-size: 14px; font-weight: 700; }
+    .result .details { font-size: 12px; color: #8290a4; margin-top: 2px; }
+    .result.bad { border-color: #ffd9d5; background: #fff8f7; }
+    .summary { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #eef1f6; margin-top: 20px; padding-top: 18px; font-weight: 750; }
+    .sidecard h3, .history h3 { font-size: 16px; margin: 0 0 17px; letter-spacing: -.02em; }
+    .tip { display: flex; gap: 12px; margin: 0 0 22px; }
+    .tip:last-child { margin-bottom: 0; }
+    .tip b { display: block; font-size: 13px; margin-bottom: 3px; }
+    .tip p { margin: 0; color: #8290a4; font-size: 12px; line-height: 1.5; }
+    .tipicon { width: 31px; height: 31px; flex: 0 0 31px; display: grid; place-items: center; border-radius: 10px; background: #eff3ff; }
+    .history { margin-top: 40px; }
+    .history h3 { font-size: 21px; }
+    .storage-card { max-width: 720px; margin: 0 0 18px; padding: 17px 20px; border: 1px solid #e5eaf3; border-radius: 16px; background: #fff; }
+    .storage-head { display: flex; justify-content: space-between; gap: 12px; color: #40516c; font-size: 13px; font-weight: 750; }
+    .storage-detail { display: block; margin-top: 7px; color: #8290a4; font-size: 12px; }
+    .storage-track { height: 9px; margin-top: 11px; overflow: hidden; border-radius: 99px; background: #eaf0fb; }
+    .storage-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #2c6bff, #62b8ff); }
+    .storage-card.low .storage-track span { background: #e29a35; }
+    .pill.expired { background: #f0f1f4; color: #667085; }
+    .job { background: #fff; border: 1px solid #e5eaf3; border-radius: 17px; padding: 18px 20px; margin: 10px 0; display: flex; gap: 14px; align-items: center; }
+    .job-info { flex: 1; min-width: 0; }
+    .job strong { display: block; font-size: 14px; overflow-wrap: anywhere; }
+    .job small { color: #8290a4; display: block; margin-top: 4px; }
+    .pill { padding: 7px 11px; border-radius: 99px; font-size: 11px; font-weight: 800; background: #edf3ff; color: #3866c7; white-space: nowrap; }
+    .pill.ready { background: #e9f8ef; color: #2c8b57; }
+    .pill.failed { background: #ffefed; color: #c04b3f; }
+    .filelist { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 310px), 1fr)); gap: 12px; padding: 8px 20px 12px 65px; }
+    .file-tile { min-width: 0; background: #fff; border: 1px solid #e5eaf3; border-radius: 15px; padding: 13px 14px; }
+    .file-tile-head { display: flex; align-items: center; gap: 9px; min-width: 0; }
+    .file-tile-info { flex: 1; min-width: 0; }
+    .file-tile-name { display: block; color: #263650; font-size: 13px; font-weight: 750; line-height: 1.4; overflow-wrap: anywhere; }
+    .file-tile-size { display: block; margin-top: 3px; color: #8290a4; font-size: 12px; }
+    .file-download { flex: 0 0 auto; text-decoration: none; border-radius: 9px; background: #f1f5fc; padding: 8px 10px; color: #2d62ce; font-size: 12px; font-weight: 750; }
+    .file-download:hover { background: #e8efff; }
+    .tile-toggle { flex: 0 0 36px; width: 36px; height: 40px; padding: 0; margin: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: #68778f; font-size: 22px; font-weight: 450; line-height: 1; }
+    .tile-toggle:hover { background: transparent; color: #245bd8; opacity: .72; }
+    .tile-toggle:focus-visible { outline: 2px solid #6c93f7; outline-offset: 0; }
+    .file-tile-body { border-top: 1px solid #eef1f6; margin-top: 11px; padding-top: 10px; }
+    .file-tile-body[hidden] { display: none; }
+    .file-tile-link-label { display: block; color: #8290a4; font-size: 11px; margin-bottom: 5px; }
+    .file-tile-url { display: block; color: #50627f; font-size: 11px; line-height: 1.45; overflow-wrap: anywhere; }
+    .file-copy { margin-top: 8px; border: 0; background: transparent; padding: 4px 0; color: #2d62ce; font-size: 12px; font-weight: 700; }
+    .file-copy:hover { opacity: .72; }
+    @media (max-width: 560px) { .filelist { padding-left: 20px; padding-right: 20px; grid-template-columns: 1fr; } .file-tile-head { flex-wrap: wrap; } .file-tile-info { flex-basis: calc(100% - 60px); } }
+    .progress-card { margin: -2px 0 13px; padding: 17px 20px 18px 65px; background: #fff; border: 1px solid #e5eaf3; border-radius: 17px; }
+    .progress-head, .progress-file { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+    .progress-head strong { font-size: 14px; }
+    .progress-head span, .progress-file span { color: #64758f; font-size: 12px; }
+    .progress-file { margin-top: 9px; font-size: 12px; overflow-wrap: anywhere; }
+    .track { height: 10px; background: #eaf0fb; border-radius: 99px; overflow: hidden; margin: 9px 0 2px; }
+    .track span { display: block; height: 100%; background: linear-gradient(90deg, #2c6bff, #62b8ff); border-radius: inherit; transition: width .4s ease; }
+    .track.small { height: 5px; margin: 5px 0 0; }
+    .folder-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 0 20px 14px 65px; }
+    .folder-actions .primary { text-decoration: none; display: inline-flex; align-items: center; }
+    .bundle-note { display: block; padding: 0 20px 12px 65px; color: #8290a4; font-size: 12px; }
+    .rename { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .rename .field { width: min(330px, 100%); }
+    .rename button { white-space: nowrap; }
+    .retry { display: flex; gap: 10px; padding: 0 20px 15px 64px; align-items: center; }
+    .retry .field { max-width: 330px; }
+    @media (max-width: 560px) { .retry { padding-left: 20px; flex-direction: column; align-items: stretch; } .retry .field { max-width: none; } .progress-card { padding-left: 20px; } .folder-actions, .bundle-note { padding-left: 20px; } }
+    .overlay { position: fixed; inset: 0; z-index: 5; display: grid; place-items: center; background: #f6f8fce8; backdrop-filter: blur(10px); padding: 20px; }
+    .login { max-width: 420px; width: 100%; padding: 36px; text-align: center; }
+    .login .brandmark { margin: 0 auto 20px; width: 52px; height: 52px; font-size: 27px; }
+    .login h2 { font-size: 28px; }
+    .login p { color: #7b8aa2; margin: 7px 0 25px; line-height: 1.5; }
+    .login .primary { width: 100%; margin-top: 14px; }
+    .sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+    footer { color: #8c9ab0; font-size: 12px; margin-top: 30px; line-height: 1.5; }
+    @media (max-width: 780px) { .layout { grid-template-columns: 1fr; } .shell { padding: 19px 16px 70px; } header { margin-bottom: 38px; } .maincard { padding: 22px; } }
+    @media (max-width: 480px) { .steps { gap: 6px; } .step { font-size: 11px; } .step + .step::before { width: 7px; } .segmented { flex-direction: column; } .job { align-items: flex-start; } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header><a class="brand" href="/"><span class="brandmark" aria-hidden="true">☁</span> Nuage</a><nav class="head-actions" aria-label="Navigation"><a id="navAdd" class="ghost" href="/">Ajouter</a><a id="navDownloads" class="ghost" href="/downloads">Mes liens</a><button id="logout" class="ghost" hidden>Se déconnecter</button></nav></header>
+    <div class="hero"><div class="eyebrow">Tes fichiers, sans attendre</div><h1 id="heroTitle">Du lien au fichier.<br>Tout simplement.</h1><p id="heroDescription">Colle tes liens, vérifie ce qu'ils contiennent, puis laisse le serveur télécharger pour toi.</p></div>
+    <div class="layout" id="composer">
+      <main class="card maincard">
+        <div class="steps" aria-label="Étapes"><div id="step1" class="step active"><span>1</span> Liens</div><div id="step2" class="step"><span>2</span> Vérification</div><div id="step3" class="step"><span>3</span> Téléchargement</div></div>
+        <section id="entry">
+          <h2>Qu'est-ce qu'on télécharge ?</h2><p class="hint">Un lien par ligne. Tu peux en coller plusieurs d'un coup.</p>
+          <div class="segmented" role="group" aria-label="Type de téléchargement"><button type="button" class="mode selected" data-mode="files" aria-pressed="true"><span class="icon">↓</span><span><strong>Fichiers simples</strong><small>Un ou plusieurs liens</small></span></button><button type="button" class="mode" data-mode="rar" aria-pressed="false"><span class="icon">▣</span><span><strong>Archive en parties</strong><small>part01.rar, part02.rar…</small></span></button></div>
+          <label for="urls">Tes liens de téléchargement</label><textarea id="urls" spellcheck="false" placeholder="https://akirabox.to/…/file&#10;https://…/part02.rar"></textarea>
+          <div id="passwordline" class="fieldline" hidden><label for="archivepassword">Mot de passe de l'archive <span class="muted">(si nécessaire)</span></label><input id="archivepassword" class="field" type="password" autocomplete="off" placeholder="Laisse vide si l'archive n'en a pas"></div>
+          <div class="actions"><span class="smallnote">Aucun fichier n'est téléchargé pendant la vérification.</span><button id="probe" class="primary">Vérifier les liens →</button></div>
+        </section>
+        <section id="review" hidden aria-live="polite"><h2>Tout est prêt ?</h2><p class="hint">Vérifie les fichiers avant de lancer le téléchargement.</p><div id="results"></div><div class="summary"><span>Taille connue du lot</span><span id="total">—</span></div><p class="hint" style="margin:14px 0 0">Quand quelqu'un récupère le résultat, la sortie Internet depuis Azure peut être facturée. Les 100 premiers Go du mois sont gratuits, puis le tarif dépend du volume et du routage. Un nouveau téléchargement du même fichier compte à nouveau.</p><div class="actions"><button id="edit" class="secondary">← Modifier les liens</button><button id="start" class="primary">Lancer le téléchargement →</button></div></section>
+        <div id="message" class="status" role="status" hidden></div>
+      </main>
+      <aside class="card sidecard"><h3>Comment ça marche ?</h3><div class="tip"><span class="tipicon">🔎</span><div><b>1. Vérifie</b><p>On regarde le nom, la taille et la disponibilité avant de télécharger.</p></div></div><div class="tip"><span class="tipicon">⚡</span><div><b>2. Télécharge</b><p>Le serveur récupère les fichiers. Pour les RAR, il attend toutes les parties puis extrait.</p></div></div><div class="tip"><span class="tipicon">🔗</span><div><b>3. Récupère</b><p>Un lien apparaît quand tout est terminé. La reprise du téléchargement est possible.</p></div></div><div class="tip"><span class="tipicon">💡</span><div><b>Coût du trafic</b><p>Chaque fichier récupéré depuis Azure vers ton appareil consomme du trafic sortant facturable.</p></div></div></aside>
+    </div>
+    <section class="history" id="history" hidden><h3 id="historyTitle">Mes téléchargements</h3><div id="storageCard" class="storage-card" hidden><div class="storage-head"><span>Stockage du serveur</span><span id="storageFree">— libre</span></div><div class="storage-track" role="progressbar" aria-label="Espace utilisé sur le disque"><span id="storageFill"></span></div><small id="storageDetail" class="storage-detail"></small></div><div id="historyMessage" class="status" role="status" hidden></div><div id="jobs"></div></section>
+    <footer>Liens AkiraBox et MediaFire pris en charge. Les autres hébergeurs seront ajoutés après vérification. Les fichiers prêts sont supprimés automatiquement après 5 jours. Ils restent accessibles uniquement aux personnes qui connaissent le mot de passe.</footer>
+  </div>
+  <div id="loginlayer" class="overlay" hidden><form id="loginform" class="card login"><div class="brandmark" aria-hidden="true">☁</div><h2>Bienvenue sur Nuage</h2><p>Entre le mot de passe pour accéder aux téléchargements.</p><label for="sitepassword" class="sr">Mot de passe</label><input id="sitepassword" class="field" type="password" placeholder="Mot de passe" autocomplete="current-password" required><button class="primary">Entrer →</button><div id="loginerror" class="status error" hidden></div></form></div>
+  <script src="/assets/file-tiles.js"></script>
+  <script>
+    const $ = id => document.getElementById(id);
+    let mode = 'files';
+    let checked = false;
+    const labels = {queued:'En attente',downloading:'Téléchargement',extracting:'Extraction',publishing:'Préparation',ready:'Prêt',failed:'Erreur',expired:'Expiré'};
+    const fmt = bytes => { if(bytes == null || !Number.isFinite(Number(bytes)))return 'Taille inconnue'; let size=Number(bytes); const units=['octets','Ko','Mo','Go','To']; let unit=0; while(size>=1000 && unit<units.length-1){size/=1000;unit++;} return new Intl.NumberFormat('fr-FR',{maximumFractionDigits:unit?2:0}).format(size)+' '+units[unit]; };
+    const remaining = seconds => { const days=Math.floor(seconds/86400); const hours=Math.floor((seconds%86400)/3600); return days>0?`${days} j ${hours} h`:`${hours} h ${Math.floor((seconds%3600)/60)} min`; };
+    const getUrls = () => $('urls').value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+    function showMessage(text, error=false) { const el=($('composer').hidden || document.activeElement?.closest?.('#history')) ? $('historyMessage') : $('message'); el.textContent=text; el.classList.toggle('error',error); el.hidden=!text; }
+    async function api(path, options={}) { const response=await fetch(path,{credentials:'same-origin',headers:{'Content-Type':'application/json'},...options}); const data=await response.json().catch(()=>({})); if(response.status===401 && path!=='/api/login') $('loginlayer').hidden=false; if(!response.ok) throw new Error(data.detail || 'Une erreur est survenue'); return data; }
+    const libraryView = location.pathname === '/downloads' || location.pathname.startsWith('/job/');
+    $('composer').hidden = libraryView;
+    $('navAdd').classList.toggle('current', !libraryView);
+    $('navDownloads').classList.toggle('current', libraryView);
+    if (libraryView) {
+      $('heroTitle').textContent = location.pathname.startsWith('/job/') ? 'Ton dossier et ses fichiers.' : 'Tous tes liens, au même endroit.';
+      $('heroDescription').textContent = 'Retrouve les téléchargements, suis leur progression et partage les fichiers prêts.';
+      $('historyTitle').textContent = location.pathname.startsWith('/job/') ? 'Fichiers du dossier' : 'Mes liens de téléchargement';
+    }
+    const {createFileTile} = window.NuageFileTiles;
+    function progressCard(job) {
+      const records = job.progress || {};
+      const totals = job.items.map(item => item.size ?? records[item.name]?.total);
+      const known = totals.every(size => Number.isFinite(size) && size >= 0);
+      const total = known ? totals.reduce((sum, size) => sum + size, 0) : null;
+      const completed = job.items.reduce((sum, item, index) => {
+        const amount = records[item.name]?.completed || 0;
+        return sum + Math.min(amount, totals[index] ?? amount);
+      }, 0);
+      const speed = job.items.reduce((sum, item) => sum + (records[item.name]?.speed || 0), 0);
+      const percent = total > 0 ? Math.min(100, Math.floor(completed / total * 100)) : null;
+      const card = document.createElement('div');
+      card.className = 'progress-card';
+      const head = document.createElement('div');
+      head.className = 'progress-head';
+      const heading = document.createElement('strong');
+      heading.textContent = job.state === 'extracting' ? 'Téléchargement terminé · extraction en cours' : 'Progression du lot';
+      const numbers = document.createElement('span');
+      numbers.textContent = `${fmt(completed)} / ${total === null ? 'taille inconnue' : fmt(total)} · ${percent === null ? '—' : 100 - percent + ' % restant'} · ${fmt(speed)}/s`;
+      head.append(heading, numbers);
+      card.append(head);
+      if (percent !== null) {
+        const track = document.createElement('div');
+        track.className = 'track';
+        track.setAttribute('role', 'progressbar');
+        track.setAttribute('aria-valuemin', '0');
+        track.setAttribute('aria-valuemax', '100');
+        track.setAttribute('aria-valuenow', String(percent));
+        const fill = document.createElement('span');
+        fill.style.width = percent + '%';
+        track.append(fill);
+        card.append(track);
+      }
+      for (const item of job.items) {
+        const record = records[item.name] || {};
+        const size = item.size ?? record.total;
+        const amount = Math.min(record.completed || 0, size ?? Infinity);
+        const itemPercent = size > 0 ? Math.min(100, Math.floor(amount / size * 100)) : null;
+        const line = document.createElement('div');
+        line.className = 'progress-file';
+        const name = document.createElement('b');
+        name.textContent = item.name;
+        const data = document.createElement('span');
+        data.textContent = `${fmt(amount)} / ${size == null ? 'taille inconnue' : fmt(size)} · ${itemPercent === null ? '—' : 100 - itemPercent + ' % restant'} · ${fmt(record.speed || 0)}/s`;
+        line.append(name, data);
+        card.append(line);
+        if (itemPercent !== null) {
+          const track = document.createElement('div');
+          track.className = 'track small';
+          const fill = document.createElement('span');
+          fill.style.width = itemPercent + '%';
+          track.append(fill);
+          card.append(track);
+        }
+      }
+      return card;
+    }
+    async function loadJobs(force = false) {
+      if (!force && document.activeElement?.closest?.('.retry, .rename')) return;
+      try {
+        const selected = location.pathname.startsWith('/job/') ? location.pathname.split('/')[2] : null;
+        const [data, storage] = await Promise.all([
+          selected ? api(`/api/jobs/${selected}`).then(job => ({jobs: [job]})) : api('/api/jobs'),
+          api('/api/storage')
+        ]);
+        $('storageCard').hidden = false;
+        $('storageCard').classList.toggle('low', storage.free < 100 * 1000**3);
+        $('storageFree').textContent = `${fmt(storage.free)} libres`;
+        $('storageFill').style.width = Math.min(100, storage.percent_used) + '%';
+        $('storageFill').parentElement.setAttribute('aria-valuemin', '0');
+        $('storageFill').parentElement.setAttribute('aria-valuemax', '100');
+        $('storageFill').parentElement.setAttribute('aria-valuenow', String(storage.percent_used));
+        $('storageDetail').textContent = `${fmt(storage.used)} utilisés sur ${fmt(storage.total)} · ${storage.percent_used} % occupés`;
+        const box = $('jobs');
+        box.replaceChildren();
+        $('history').hidden = false;
+        if (!data.jobs.length) {
+          const p = document.createElement('p');
+          p.className = 'muted';
+          p.textContent = 'Aucun téléchargement pour le moment.';
+          box.append(p);
+          return;
+        }
+        for (const job of data.jobs) {
+          const row = document.createElement('div');
+          row.className = 'job';
+          const icon = document.createElement('span');
+          icon.className = 'tipicon';
+          icon.textContent = job.mode === 'rar' ? '▣' : '↓';
+          const info = document.createElement('div');
+          info.className = 'job-info';
+          const title = document.createElement('strong');
+          title.textContent = job.display_name;
+          const detail = document.createElement('small');
+          let expiry = '';
+          if (job.expires_at && ['ready', 'failed'].includes(job.state)) {
+            const seconds = job.expires_at - Math.floor(Date.now() / 1000);
+            const date = new Intl.DateTimeFormat('fr-FR', {dateStyle:'medium', timeStyle:'short'}).format(new Date(job.expires_at * 1000));
+            expiry = seconds > 0 ? ` · Suppression dans ${remaining(seconds)} (${date})` : ' · Suppression imminente';
+          } else if (job.state === 'expired') {
+            expiry = ' · Fichiers supprimés après 5 jours';
+          }
+          detail.textContent = `${job.state === 'ready' ? job.files.length : job.items.length} fichier(s) · ${job.message}${expiry}`;
+          info.append(title, detail);
+          const pill = document.createElement('span');
+          pill.className = 'pill ' + job.state;
+          pill.textContent = labels[job.state] || job.state;
+          row.append(icon, info, pill);
+          box.append(row);
+          if (['queued', 'downloading', 'extracting', 'publishing'].includes(job.state) ||
+              (job.state === 'failed' && Object.keys(job.progress || {}).length)) {
+            box.append(progressCard(job));
+          }
+          if (job.state === 'failed' && job.mode === 'rar') {
+            const form = document.createElement('form');
+            form.className = 'retry';
+            const input = document.createElement('input');
+            input.type = 'password';
+            input.className = 'field';
+            input.placeholder = "Mot de passe de l'archive";
+            input.autocomplete = 'off';
+            input.required = true;
+            input.setAttribute('aria-label', "Mot de passe de l'archive");
+            const button = document.createElement('button');
+            button.type = 'submit';
+            button.className = 'primary';
+            button.textContent = "Reprendre l'extraction";
+            form.append(input, button);
+            form.addEventListener('submit', async event => {
+              event.preventDefault();
+              button.disabled = true;
+              try {
+                await api(`/api/jobs/${job.id}/retry-extract`, {
+                  method: 'POST', body: JSON.stringify({archive_password: input.value})
+                });
+                input.value = '';
+                showMessage('Extraction relancée avec les fichiers déjà téléchargés.');
+                await loadJobs(true);
+              } catch (error) {
+                showMessage(error.message, true);
+              } finally {
+                button.disabled = false;
+              }
+            });
+            box.append(form);
+          }
+          if (job.state === 'ready') {
+            const actions = document.createElement('div');
+            actions.className = 'folder-actions';
+            const bundle = job.package || {state: 'none'};
+            if (bundle.state === 'ready') {
+              const all = document.createElement('a');
+              all.href = bundle.url;
+              all.className = 'primary';
+              all.download = job.display_name + '.zip';
+              all.textContent = `Télécharger tout en ZIP · ${fmt(bundle.total)}`;
+              actions.append(all);
+            } else {
+              const all = document.createElement('button');
+              all.type = 'button';
+              all.className = 'primary';
+              all.textContent = bundle.state === 'failed' ? 'Réessayer le ZIP' :
+                                bundle.state === 'building' ? 'ZIP en préparation…' :
+                                bundle.state === 'queued' ? 'ZIP en attente…' : 'Préparer le ZIP du dossier';
+              all.disabled = bundle.state === 'building' || bundle.state === 'queued';
+              all.addEventListener('click', async () => {
+                all.disabled = true;
+                try {
+                  await api(`/api/jobs/${job.id}/package`, {method: 'POST'});
+                  showMessage('Préparation du ZIP lancée. Le dossier original reste disponible.');
+                  await loadJobs(true);
+                } catch (error) {
+                  showMessage(error.message, true);
+                  all.disabled = false;
+                }
+              });
+              actions.append(all);
+            }
+            const folder = document.createElement('a');
+            folder.href = job.folder_url;
+            folder.textContent = selected === job.id ? 'Lien du dossier' : 'Ouvrir le dossier →';
+            actions.append(folder);
+            const copy = document.createElement('button');
+            copy.type = 'button';
+            copy.className = 'secondary';
+            copy.textContent = 'Copier le lien';
+            copy.addEventListener('click', async () => {
+              try {
+                await navigator.clipboard.writeText(new URL(job.folder_url, location.href).href);
+                copy.textContent = 'Lien copié ✓';
+              } catch (_) {
+                showMessage('Impossible de copier automatiquement le lien.', true);
+              }
+            });
+            actions.append(copy);
+            const rename = document.createElement('form');
+            rename.className = 'rename';
+            const name = document.createElement('input');
+            name.className = 'field';
+            name.value = job.display_name;
+            name.maxLength = 120;
+            name.required = true;
+            name.setAttribute('aria-label', 'Nom du dossier');
+            const save = document.createElement('button');
+            save.type = 'submit';
+            save.className = 'secondary';
+            save.textContent = 'Renommer';
+            rename.append(name, save);
+            rename.addEventListener('submit', async event => {
+              event.preventDefault();
+              save.disabled = true;
+              try {
+                await api(`/api/jobs/${job.id}/rename`, {
+                  method: 'POST', body: JSON.stringify({name: name.value})
+                });
+                showMessage('Nom du dossier mis à jour.');
+                await loadJobs(true);
+              } catch (error) {
+                showMessage(error.message, true);
+              } finally {
+                save.disabled = false;
+              }
+            });
+            actions.append(rename);
+            box.append(actions);
+            const note = document.createElement('small');
+            note.className = 'bundle-note';
+            note.textContent = `Télécharger le ZIP demande environ ${fmt(bundle.total || job.files.reduce((sum, file) => sum + file.size, 0))} libres sur ton appareil et consomme du trafic sortant Azure.`;
+            box.append(note);
+            if (bundle.state === 'building' || bundle.state === 'queued') {
+              const packaging = document.createElement('div');
+              packaging.className = 'progress-card';
+              const percent = bundle.total > 0 ? Math.min(100, Math.floor(bundle.completed / bundle.total * 100)) : 0;
+              const label = document.createElement('div');
+              label.className = 'progress-head';
+              label.textContent = `Création du ZIP : ${fmt(bundle.completed)} / ${fmt(bundle.total)} · ${percent} %`;
+              const track = document.createElement('div');
+              track.className = 'track';
+              const fill = document.createElement('span');
+              fill.style.width = percent + '%';
+              track.append(fill);
+              packaging.append(label, track);
+              box.append(packaging);
+            } else if (bundle.state === 'failed') {
+              const error = document.createElement('small');
+              error.className = 'bundle-note';
+              error.textContent = `ZIP non créé : ${bundle.message}`;
+              box.append(error);
+            }
+            const files = document.createElement('div');
+            files.className = 'filelist';
+            const visible = selected === job.id ? job.files : job.files.slice(0, 8);
+            for (const file of visible) files.append(createFileTile(job, file, {
+              formatSize: fmt,
+              onError: showMessage,
+              clipboard: navigator.clipboard
+            }));
+            if (job.files.length > visible.length) {
+              const more = document.createElement('a');
+              more.href = job.folder_url;
+              more.textContent = `Voir les ${job.files.length} fichiers →`;
+              files.append(more);
+            }
+            box.append(files);
+          }
+        }
+      } catch (error) {
+        showMessage(error.message, true);
+      }
+    }
+    document.querySelectorAll('.mode').forEach(button=>button.addEventListener('click',()=>{mode=button.dataset.mode; document.querySelectorAll('.mode').forEach(b=>{const selected=b===button;b.classList.toggle('selected',selected);b.setAttribute('aria-pressed',selected);});$('passwordline').hidden=mode!=='rar';}));
+    $('probe').addEventListener('click',async()=>{const urls=getUrls(); if(!urls.length){showMessage('Colle au moins un lien pour continuer.',true);return;} $('probe').disabled=true; showMessage('Vérification des liens en cours…'); try {const data=await api('/api/probe',{method:'POST',body:JSON.stringify({urls})}); const box=$('results');box.replaceChildren();for(const item of data.items){const row=document.createElement('div');row.className='result'+(item.ok?'':' bad');const icon=document.createElement('span');icon.textContent=item.ok?'✓':'!';const detail=document.createElement('div');detail.className='name';const name=document.createElement('div');name.textContent=item.name||'Lien indisponible';const sub=document.createElement('div');sub.className='details';sub.textContent=item.ok?`${item.host} · ${fmt(item.size)}${item.mime?' · '+item.mime:''}${item.note?' · '+item.note:''}`:item.error;detail.append(name,sub);row.append(icon,detail);box.append(row);} $('total').textContent=fmt(data.total_size);$('entry').hidden=true;$('review').hidden=false;$('step1').classList.remove('active');$('step2').classList.add('active');$('start').disabled=!data.all_ready;checked=data.all_ready;showMessage(data.all_ready?'Les liens sont vérifiés. Aucun gros téléchargement n’a commencé.':'Corrige les liens indiqués en rouge avant de continuer.',!data.all_ready);}catch(error){showMessage(error.message,true);}finally{$('probe').disabled=false;}});
+    $('edit').addEventListener('click',()=>{$('entry').hidden=false;$('review').hidden=true;$('step1').classList.add('active');$('step2').classList.remove('active');checked=false;showMessage('');});
+    $('start').addEventListener('click',async()=>{if(!checked)return;$('start').disabled=true;showMessage('Création de la tâche…');try{await api('/api/jobs',{method:'POST',body:JSON.stringify({urls:getUrls(),mode,archive_password:$('archivepassword').value})});$('archivepassword').value='';$('review').hidden=true;$('entry').hidden=false;$('urls').value='';$('step2').classList.remove('active');$('step3').classList.add('active');showMessage('Téléchargement lancé. Tu peux fermer cette page et revenir plus tard.');await loadJobs();}catch(error){showMessage(error.message,true);}finally{$('start').disabled=false;}});
+    $('loginform').addEventListener('submit',async event=>{event.preventDefault();$('loginerror').hidden=true;try{await api('/api/login',{method:'POST',body:JSON.stringify({password:$('sitepassword').value})});$('sitepassword').value='';$('loginlayer').hidden=true;$('logout').hidden=false;await loadJobs();}catch(error){$('loginerror').textContent=error.message;$('loginerror').hidden=false;}});
+    $('logout').addEventListener('click',async()=>{await api('/api/logout',{method:'POST'});$('loginlayer').hidden=false;$('logout').hidden=true;});
+    (async()=>{try{const status=await api('/api/me');$('loginlayer').hidden=status.authenticated;$('logout').hidden=!status.authenticated;if(status.authenticated)await loadJobs();}catch(_){$('loginlayer').hidden=false;}})();
+    setInterval(()=>{if($('loginlayer').hidden)loadJobs();},5000);
+  </script>
+</body>
+</html>

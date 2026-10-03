@@ -1,0 +1,17 @@
+transfer.example.com {
+    handle /files/* {
+        forward_auth 127.0.0.1:8765 {
+            uri /api/auth/file
+        }
+        header Content-Disposition attachment
+        header X-Content-Type-Options nosniff
+        root * /data/transfer-portal/public
+        file_server
+    }
+
+    handle {
+        reverse_proxy 127.0.0.1:8765 {
+            header_up X-Real-IP {remote_host}
+        }
+    }
+}

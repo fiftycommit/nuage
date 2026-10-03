@@ -1,0 +1,25 @@
+[Unit]
+Description=Azure transfer portal
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=transferportal
+Group=transferportal
+WorkingDirectory=/opt/transfer-portal
+EnvironmentFile=/etc/transfer-portal.env
+ExecStart=/opt/transfer-portal/.venv/bin/uvicorn app:app --host 127.0.0.1 --port 8765 --workers 1
+Restart=on-failure
+RestartSec=3
+UMask=0022
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/data/transfer-portal
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+
+[Install]
+WantedBy=multi-user.target
