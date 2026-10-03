@@ -2,6 +2,8 @@
 import importlib.util
 import json
 import os
+import subprocess
+import sys
 from pathlib import Path
 import tempfile
 import time
@@ -100,6 +102,42 @@ class PortalTests(unittest.TestCase):
         with patch.object(app.subprocess, 'run', return_value=SimpleNamespace(returncode=0, stdout='../escape.bin\n')):
             with self.assertRaises(RuntimeError):
                 app.safe_archive_entries(Path('demo.rar'), '')
+
+    def test_unrar_reports_live_progress_and_confirms_success(self):
+        real_popen = subprocess.Popen
+        script = (
+            'import os,sys,time; sys.stdin.buffer.read(); '
+            'os.write(1,b"Extracting archive-98%.rar\\n\\b\\b\\b\\b 2"); time.sleep(.05); '
+            'os.write(1,b"5%"); time.sleep(.05); '
+            'os.write(1,b"\\b\\b\\b\\b 75%"); time.sleep(.05); '
+            'os.write(1,b"\\b\\b\\b\\b100%")'
+        )
+        def start(command, **kwargs):
+            self.assertNotIn('archive-fixture-secret', command)
+            return real_popen([sys.executable, '-c', script], **kwargs)
+        with patch.object(app.subprocess, 'Popen', side_effect=start), patch.object(app, 'update') as report:
+            self.assertEqual(app.run_unrar(Path('demo.rar'), Path(DATA.name),
+                                          'archive-fixture-secret', 'a'*24), 0)
+        percentages = [json.loads(call.kwargs['extraction'])['percent'] for call in report.call_args_list]
+        self.assertEqual(percentages[-2:], [99, 100])
+        self.assertEqual(percentages, sorted(set(percentages)))
+        self.assertTrue(set(percentages) <= {25, 75, 99, 100})
+
+    def test_unrar_failure_never_reports_completion(self):
+        real_popen = subprocess.Popen
+        script = 'import os,sys; sys.stdin.buffer.read(); os.write(1,b"\\b\\b\\b\\b100%"); sys.exit(3)'
+        with patch.object(app.subprocess, 'Popen', side_effect=lambda command, **kwargs:
+                          real_popen([sys.executable, '-c', script], **kwargs)), patch.object(app, 'update') as report:
+            self.assertEqual(app.run_unrar(Path('demo.rar'), Path(DATA.name), '', 'a'*24), 3)
+        self.assertEqual(json.loads(report.call_args.kwargs['extraction'])['percent'], 99)
+
+    def test_extraction_progress_is_exposed_in_authenticated_api(self):
+        now = int(time.time())
+        with app.connect() as connection:
+            connection.execute('INSERT INTO jobs(id,created,updated,state,mode,items,extraction) VALUES(?,?,?,?,?,?,?)',
+                               ('b'*24, now, now, 'extracting', 'rar', '[]', '{"percent":42}'))
+        self.login()
+        self.assertEqual(self.client.get('/api/jobs').json()['jobs'][0]['extraction'], {'percent': 42})
 
 
 if __name__ == '__main__':

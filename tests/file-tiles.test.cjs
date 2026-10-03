@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
 const {createFileTile} = require('../file-tiles.js');
 
 class FakeElement {
@@ -10,6 +11,7 @@ class FakeElement {
     this.children = [];
     this.attributes = {};
     this.listeners = {};
+    this.style = {};
     this.hidden = false;
     this.textContent = '';
   }
@@ -134,4 +136,24 @@ test('page loads the reusable tile component and its inline script parses', () =
   const app = fs.readFileSync(path.join(__dirname, '..', 'app.py'), 'utf8');
   assert.match(app, /@app\.get\("\/assets\/file-tiles\.js"\)/);
   assert.match(app, /FileResponse\(HERE \/ "file-tiles\.js", media_type="application\/javascript"\)/);
+});
+
+test('extraction has its own percentage and handles unknown and failed progress', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  const source = html.slice(html.indexOf('function extractionProgressCard(job)'), html.indexOf('async function loadJobs'));
+  const {context} = setup();
+  const sandbox = {document: context.document};
+  vm.createContext(sandbox);
+  vm.runInContext(source, sandbox);
+  const render = job => sandbox.progressCard({items: [{name:'demo.part01.rar',size:100}],
+    progress:{'demo.part01.rar':{completed:100,total:100,speed:500}}, ...job});
+  const card = render({state:'extracting', extraction:{percent:42}});
+  assert.equal(card.children[0].children[1].textContent, '42 % décompressé · 58 % restant');
+  assert.equal(card.children[1].getAttribute('aria-valuenow'), '42');
+  assert.equal(card.children[1].children[0].style.width, '42%');
+  const pending = render({state:'extracting', extraction:{percent:null}});
+  assert.equal(pending.children[1].getAttribute('aria-valuenow'), null);
+  assert.match(pending.children[0].children[1].textContent, /progression en attente/);
+  const failed = render({state:'failed', extraction:{percent:42}});
+  assert.equal(failed.children[0].children[0].textContent, 'Décompression interrompue');
 });

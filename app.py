@@ -73,6 +73,8 @@ with connect() as connection:
     columns = {column[1] for column in connection.execute("PRAGMA table_info(jobs)")}
     if "progress" not in columns:
         connection.execute("ALTER TABLE jobs ADD COLUMN progress TEXT NOT NULL DEFAULT '{}'")
+    if "extraction" not in columns:
+        connection.execute("ALTER TABLE jobs ADD COLUMN extraction TEXT NOT NULL DEFAULT '{}'")
     if "display_name" not in columns:
         connection.execute("ALTER TABLE jobs ADD COLUMN display_name TEXT NOT NULL DEFAULT ''")
     if "package_state" not in columns:
@@ -129,6 +131,7 @@ def public_job(row: dict) -> dict:
         ],
         "files": json.loads(row["files"]),
         "progress": json.loads(row["progress"]),
+        "extraction": json.loads(row["extraction"]),
         "display_name": row["display_name"] or default_display_name(items, row["mode"]),
         "folder_url": f"/job/{row['id']}" if row["state"] == "ready" else None,
         "package": {
@@ -659,6 +662,62 @@ def safe_archive_entries(first: Path, password: str) -> None:
             raise RuntimeError("L'archive contient un chemin non sûr")
 
 
+def run_unrar(first: Path, output: Path, password: str, job_id: str) -> int:
+    # Capture Unrar's live terminal percentage readout (including backspaces).
+    # Keep the password on stdin, never in the command line or public progress.
+    master, slave = pty.openpty()
+    process = None
+    try:
+        process = subprocess.Popen(
+            ["unrar", "x", "-y", "-o-", str(first), str(output) + "/"],
+            stdin=subprocess.PIPE, stdout=slave, stderr=slave,
+        )
+        os.close(slave)
+        slave = None
+        try:
+            process.stdin.write(((password + "\n") * 10).encode())
+            process.stdin.flush()
+        except BrokenPipeError:
+            pass
+        finally:
+            try:
+                process.stdin.close()
+            except BrokenPipeError:
+                pass
+        buffer = ""
+        percent = -1
+        while True:
+            try:
+                chunk = os.read(master, 4096)
+            except OSError as exc:
+                if exc.errno == errno.EIO:
+                    break
+                raise
+            if not chunk:
+                break
+            buffer += chunk.decode("utf-8", "replace")
+            # Match Unrar's terminal readout, not '%' in an archive filename.
+            matches = re.findall(r"\x08{4} *(\d{1,3})%", buffer)
+            # Reserve 100% for a successful exit (including CRC verification).
+            current = max((min(99, int(value)) for value in matches
+                           if int(value) <= 100), default=percent)
+            if current > percent:
+                percent = current
+                update(job_id, extraction=json.dumps({"percent": percent}))
+            buffer = buffer[-128:]
+        code = process.wait()
+        if code == 0:
+            update(job_id, extraction=json.dumps({"percent": 100}))
+        return code
+    finally:
+        os.close(master)
+        if slave is not None:
+            os.close(slave)
+        if process is not None and process.poll() is None:
+            process.terminate()
+            process.wait()
+
+
 def published_files(directory: Path, job_id: str) -> list[dict]:
     files = []
     for path in directory.rglob("*"):
@@ -680,7 +739,8 @@ def process(row: dict) -> None:
     downloads = workspace / "downloads"
     downloads.mkdir(parents=True, exist_ok=True)
     try:
-        update(job_id, state="downloading", message=f"Téléchargement de {len(items)} fichier(s)")
+        update(job_id, state="downloading", message=f"Téléchargement de {len(items)} fichier(s)",
+               extraction="{}")
         workers = min(2 if all(item["host"] == "MediaFire" for item in items) else 3, len(items))
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
             futures = [pool.submit(download_one, item, downloads, job_id) for item in items]
@@ -690,16 +750,14 @@ def process(row: dict) -> None:
                 completed += 1
                 update(job_id, message=f"{completed}/{len(items)} fichier(s) téléchargé(s)")
         if row["mode"] == "rar":
-            update(job_id, state="extracting", message="Extraction des archives RAR")
+            update(job_id, state="extracting", message="Décompression des archives RAR",
+                   extraction=json.dumps({"percent": None}))
             first = next(downloads / item["name"] for item in items
                          if re.search(r"\.part0*1\.rar$", item["name"], re.I))
             safe_archive_entries(first, row["archive_password"])
             output = workspace / "extracted"
             output.mkdir(exist_ok=True)
-            result = subprocess.run(["unrar", "x", "-y", "-o-", str(first), str(output) + "/"],
-                                    input=(row["archive_password"] + "\n") * 10,
-                                    stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
-            if result.returncode:
+            if run_unrar(first, output, row["archive_password"], job_id):
                 raise RuntimeError("Extraction RAR échouée ; vérifie le mot de passe et les parties")
         else:
             output = downloads
@@ -780,7 +838,7 @@ def expire_job(row: dict) -> None:
         for item in items
     ]
     update(job_id, state="expired", message="Fichiers supprimés après 5 jours",
-           items=json.dumps(retained_items), files="[]", progress="{}", archive_password="",
+           items=json.dumps(retained_items), files="[]", progress="{}", extraction="{}", archive_password="",
            package_state="expired", package_completed=0, package_total=0,
            package_message="", expires_at=row["expires_at"])
 

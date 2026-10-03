@@ -27,17 +27,22 @@ downloading = {'id': '1123456789abcdef01234567', 'state': 'downloading', 'mode':
     'message': '', 'items': [{'name': 'observations-2026.tar', 'size': 230_000_000_000, 'host': 'MediaFire'}],
     'files': [], 'progress': {'observations-2026.tar': {'completed': 87_400_000_000,
     'total': 230_000_000_000, 'speed': 198_000_000}}, 'package': {'state': 'none'}}
+extracting = {'id': '2123456789abcdef01234567', 'state': 'extracting', 'mode': 'rar',
+    'created': now, 'updated': now, 'expires_at': 0, 'display_name': 'Collection photo · Démo',
+    'message': 'Décompression des archives RAR',
+    'items': [{'name': 'photos.part01.rar', 'size': 20_000_000_000, 'host': 'MediaFire'}],
+    'files': [], 'progress': {}, 'extraction': {'percent': 42}, 'package': {'state': 'none'}}
 mock = '''<script>window.fetch=async(path)=>({ok:true,status:200,json:async()=>
   path==='/api/me'?{authenticated:true}:
   path==='/api/storage'?{total:1080000000000,used:420000000000,free:660000000000,percent_used:38.9}:
-  {jobs:JOB_DATA}});</script>'''.replace('JOB_DATA', json.dumps([ready, downloading]))
+  {jobs:JOB_DATA}});</script>'''.replace('JOB_DATA', json.dumps([ready, downloading, extracting]))
 base = (ROOT/'index.html').read_text()
 output = ROOT/'docs/screenshots'
 output.mkdir(parents=True, exist_ok=True)
 with tempfile.TemporaryDirectory(prefix='nuage-preview-') as tmp:
     preview = Path(tmp)
     shutil.copyfile(ROOT/'file-tiles.js', preview/'file-tiles.js')
-    for name, library, width, height in [('add', False, 1440, 1200), ('downloads', True, 1440, 1600), ('mobile', True, 390, 1800)]:
+    for name, library, width, height in [('add', False, 1440, 1200), ('downloads', True, 1440, 1600), ('mobile', True, 390, 2100)]:
         html = base.replace('<script src="/assets/file-tiles.js"></script>', mock+'<script src="file-tiles.js"></script>')
         html = html.replace("const libraryView = location.pathname === '/downloads' || location.pathname.startsWith('/job/');", f'const libraryView = {str(library).lower()};')
         html = html.replace('<div class="eyebrow">Tes fichiers, sans attendre</div>', '<div class="eyebrow">Démonstration · données fictives</div>')

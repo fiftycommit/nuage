@@ -48,6 +48,7 @@ Les captures sont produites automatiquement par la CI à partir du véritable fr
 | Archive RAR multipartie | Vérifie la numérotation, télécharge toutes les parties, puis extrait |
 | Archive protégée | Mot de passe d'archive distinct du mot de passe du site ; reprise d'extraction possible |
 | Progression | Débit courant, téléchargé/total et pourcentage restant par fichier |
+| Décompression RAR | Barre distincte avec le pourcentage réel fourni par unrar et le pourcentage restant ; 100 % seulement après réussite |
 | Dossier complet | ZIP sans recompression, créé en arrière-plan avec progression |
 | Bibliothèque | Nom affiché modifiable, liens de téléchargement et tuiles repliables par fichier |
 | Conservation | Suppression automatique des résultats et du ZIP après 5 jours |

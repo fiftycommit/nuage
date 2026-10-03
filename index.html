@@ -161,7 +161,7 @@
     const $ = id => document.getElementById(id);
     let mode = 'files';
     let checked = false;
-    const labels = {queued:'En attente',downloading:'Téléchargement',extracting:'Extraction',publishing:'Préparation',ready:'Prêt',failed:'Erreur',expired:'Expiré'};
+    const labels = {queued:'En attente',downloading:'Téléchargement',extracting:'Décompression',publishing:'Préparation',ready:'Prêt',failed:'Erreur',expired:'Expiré'};
     const fmt = bytes => { if(bytes == null || !Number.isFinite(Number(bytes)))return 'Taille inconnue'; let size=Number(bytes); const units=['octets','Ko','Mo','Go','To']; let unit=0; while(size>=1000 && unit<units.length-1){size/=1000;unit++;} return new Intl.NumberFormat('fr-FR',{maximumFractionDigits:unit?2:0}).format(size)+' '+units[unit]; };
     const remaining = seconds => { const days=Math.floor(seconds/86400); const hours=Math.floor((seconds%86400)/3600); return days>0?`${days} j ${hours} h`:`${hours} h ${Math.floor((seconds%3600)/60)} min`; };
     const getUrls = () => $('urls').value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
@@ -177,7 +177,41 @@
       $('historyTitle').textContent = location.pathname.startsWith('/job/') ? 'Fichiers du dossier' : 'Mes liens de téléchargement';
     }
     const {createFileTile} = window.NuageFileTiles;
+    function extractionProgressCard(job) {
+      const card = document.createElement('div');
+      card.className = 'progress-card';
+      const head = document.createElement('div');
+      head.className = 'progress-head';
+      const heading = document.createElement('strong');
+      heading.textContent = job.state === 'failed' ? 'Décompression interrompue' : 'Décompression des archives';
+      const numbers = document.createElement('span');
+      const value = job.extraction?.percent;
+      const percent = Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : null;
+      numbers.textContent = percent === null ? 'Analyse de l’archive · progression en attente' : `${percent} % décompressé · ${100 - percent} % restant`;
+      head.append(heading, numbers);
+      card.append(head);
+      const track = document.createElement('div');
+      track.className = 'track';
+      track.setAttribute('role', 'progressbar');
+      track.setAttribute('aria-label', 'Décompression des archives');
+      track.setAttribute('aria-valuemin', '0');
+      track.setAttribute('aria-valuemax', '100');
+      const fill = document.createElement('span');
+      if (percent !== null) {
+        track.setAttribute('aria-valuenow', String(percent));
+        fill.style.width = percent + '%';
+      } else {
+        track.setAttribute('aria-valuetext', 'Progression en attente');
+        fill.style.width = '0%';
+      }
+      track.append(fill);
+      card.append(track);
+      return card;
+    }
     function progressCard(job) {
+      if (job.state === 'extracting' || (job.state === 'failed' && 'percent' in (job.extraction || {}))) {
+        return extractionProgressCard(job);
+      }
       const records = job.progress || {};
       const totals = job.items.map(item => item.size ?? records[item.name]?.total);
       const known = totals.every(size => Number.isFinite(size) && size >= 0);
@@ -193,7 +227,7 @@
       const head = document.createElement('div');
       head.className = 'progress-head';
       const heading = document.createElement('strong');
-      heading.textContent = job.state === 'extracting' ? 'Téléchargement terminé · extraction en cours' : 'Progression du lot';
+      heading.textContent = 'Progression du lot';
       const numbers = document.createElement('span');
       numbers.textContent = `${fmt(completed)} / ${total === null ? 'taille inconnue' : fmt(total)} · ${percent === null ? '—' : 100 - percent + ' % restant'} · ${fmt(speed)}/s`;
       head.append(heading, numbers);
