@@ -8,6 +8,7 @@ from pathlib import Path
 import tempfile
 import time
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -150,7 +151,8 @@ class PortalTests(unittest.TestCase):
         self.login()
         url = 'https://www.rootz.so/d/private-fixture'
         item = {'name': 'fixture.rar', 'size': 1024, 'host': 'Rootz', 'url': url}
-        with patch.object(app.rootz, 'metadata', return_value=item):
+        with patch.object(app.rootz, 'metadata', return_value=item), patch.object(
+                app.shutil, 'disk_usage', return_value=SimpleNamespace(free=100 * 1024**3)):
             response = self.client.post('/api/probe', json={'urls': [url]})
             self.assertTrue(response.json()['all_ready'])
             self.assertNotIn('url', response.json()['items'][0])
